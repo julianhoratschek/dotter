@@ -3,32 +3,33 @@ import json
 from typing import Callable
 import hashlib
 import re
+from operator import attrgetter
 
-DB_DIR: Path = Path("~/.cache/dotter/dots/").expanduser()
-DB_FILE: Path = Path("~/.cache/dotter/files.json").expanduser()
+DB_DIR: Path    = Path("~/.cache/dotter/dots/").expanduser().absolute()
+DB_FILE: Path   = Path("~/.cache/dotter/files.json").expanduser().absolute()
 
 
 # TODO: Timestamps?
 class FileEntry:
     def __init__(self, path: Path, name: str = "", selected: bool = False):
-        self.path: Path = path.expanduser().absolute()
-        self.name: str = name
-        self.selected: bool = selected
+        self.path       : Path  = path.expanduser().absolute()
+        self.name       : str   = name
+        self.selected   : bool  = selected
 
-    def to_dict(self):
+    def to_dict(self) -> dict[str, str]:
         return { "path": str(self.path.expanduser().absolute()), "name": self.name }
 
 
-type CommandCallback = Callable[[str], None]
-type PrintCallback = Callable[[FileEntry, int], str]
-type CommandList = list[tuple[set[str], CommandCallback]]
-type FileList = list[FileEntry]
+type CommandCallback    = Callable[[str], None]
+type PrintCallback      = Callable[[FileEntry, int], str]
+type CommandList        = list[tuple[set[str], CommandCallback]]
+type FileList           = list[FileEntry]
 
 
 class FileViewer:
     @staticmethod
     def __default_print(entry: FileEntry, i: int) -> str:
-        return (f"{ '' if entry.path.is_dir() else ''} "
+        return (f"{ '\x1b[34m' if entry.path.is_dir() else ''} "
                 f"[{'*' if entry.selected else ' '}] "
                 f"{i:2d} {entry.path.name}")
 
@@ -50,13 +51,13 @@ class FileViewer:
                         break
                     
                     case _:
-                        print("!! Expected list of numbers, ranges or * in file selection")
+                        print("\x1b[1;91m!!\x1b[0m Expected list of numbers, ranges or * in file selection")
                         return
                 continue
 
             end = int(cmd)
             if 0 > end >= len(self.__view_list):
-                print(f"!! Index {end} not an option in the selection list")
+                print(f"\x1b[1;91m!!\x1b[0m Index {end} not an option in the selection list")
                 return
 
             if is_range:
@@ -77,6 +78,7 @@ class FileViewer:
         self.__running: bool        = True
         self.__set_value: bool      = True
         self.__view_list: FileList  = file_list
+        self.__help_line: str       = ""
 
         self.add_command({"quit", "q", "exit"}, self.quit_view)
 
@@ -84,16 +86,21 @@ class FileViewer:
     def add_command(self, command_list: set[str], callback: CommandCallback):
         self.commands.append((command_list, callback))
 
+    def set_help_line(self, line: str):
+        self.__help_line = line
+
 
     def show(self, print_callback: PrintCallback = __default_print):
         while self.__running:
-            print("\n----------------------------------------\n")
+            print(f"\n{' \x1b[1m' + self.name + '\x1b[0m ':-^60}\n")
             for i, entry in enumerate(self.__view_list):
                 print(print_callback(entry, i))
 
-            print("\n----------------------------------------")
-            print(f"Viewer: {self.name}, Mode: {'select' if self.__set_value else 'deselect'}")
-            print("q -> quit viewer; / -> filter; ! -> switch selection mode")
+            print(f"\n{'-':-^53}")
+            print(f"Viewer: \x1b[1m{self.name}\x1b[0m, Mode: \x1b[1m{'\x1b[38;5;34mselect' if self.__set_value else '\x1b[38;5;124mdeselect'}\x1b[0m")
+            print("\x1b[48;5;240mq -> quit viewer; / -> filter; ! -> switch selection mode\x1b[0m")
+            if self.__help_line:
+                print(f"\x1b[48;5;240m{self.__help_line}\x1b[0m")
 
             if not (cmd := input(">> ").strip()):
                 continue
@@ -154,38 +161,41 @@ class Dotter:
         cmd_list = cmd.split()
 
         if len(cmd_list) < 2:
-            print("!! Expected directory ID")
+            print("\x1b[1;91m!!\x1b[0m Expected directory ID")
             return
 
         if not cmd_list[1].isnumeric():
-            print("!! Expected directory ID to by numeric")
-            return
+            if cmd_list[1] != "..":
+                print("\x1b[1;91m!!\x1b[0m Expected directory ID to by numeric")
+                return
+            new_cwd = FileEntry(self.__cwd.parent)
+        else:
+            idx = int(cmd_list[1])
+            if not (0 < idx < len(self.__dir_list)):
+                print("\x1b[1;91m!!\x1b[0m Directory ID is out of bounds")
+                return
+            new_cwd = self.__dir_list[idx]
 
-        idx = int(cmd_list[1])
-        if 0 > idx >= len(self.__dir_list):
-            print("!! Directory ID is out of bounds")
-            return
-
-        new_cwd = self.__dir_list[idx]
         if not new_cwd.path.is_dir():
-            print("!! cd expects directory as target")
+            print("\x1b[1;91m!!\x1b[0m cd expects directory as target")
             return
 
         self.__cwd = new_cwd.path
 
         self.__dir_list.clear()
-        self.__dir_list.append(FileEntry(Path("..")))
         self.__dir_list.extend([
             FileEntry(file) for file in list(self.__cwd.iterdir())])
+
+        self.__dir_list.sort(key=attrgetter("path"))
+        self.__dir_list.sort(key=lambda x: x.path.is_dir(), reverse=True)
 
 
     def __init__(self):
         self.__file_list: FileList  = self.__load_db()
         self.__cwd: Path            = Path.cwd()
 
-        self.__dir_list: FileList   = [FileEntry(Path(".."))]
-        self.__dir_list.extend([
-            FileEntry(file) for file in list(self.__cwd.iterdir())])
+        self.__dir_list: FileList   = [
+            FileEntry(file) for file in list(self.__cwd.iterdir())]
 
         DB_DIR.mkdir(exist_ok=True, parents=True)
 
@@ -218,9 +228,10 @@ class Dotter:
 
             self.__file_list.append(file_entry)
 
-        self.__save_json()
+        self.__file_list.sort(key=attrgetter("path"))
+        # self.__file_list.sort(key=lambda x: x.path.is_dir())
 
-        print("-- Done --")
+        self.__save_json()
 
 
     def delete_selection(self, _: str):
@@ -237,9 +248,13 @@ class Dotter:
 
             print(f"\t* Unlinking {entry.path}...")
             source = DB_DIR / entry.name
-            # TODO: test, if correct link or changed
             dest = entry.path
-            dest.unlink()
+
+            if dest.exists():
+                if not dest.is_symlink() or dest.resolve() != source:
+                    print(f"\t\x1b[1;91m!!\x1b[0m {dest} appears to be a different file, skipping")
+                    continue
+                dest.unlink()
 
             dest.parent.mkdir(parents=True, exist_ok=True)
             with dest.open('wb+') as fl:
@@ -253,8 +268,6 @@ class Dotter:
 
         self.__save_json()
 
-        print("-- Done --")
-
 
     def edit_selection(self, cmd: str):
         # TODO: Implement
@@ -263,24 +276,32 @@ class Dotter:
 
     def main_view(self):
         def __dir_print(entry: FileEntry, i: int) -> str:
-            in_list = any(entry.path == e.path for e in self.__file_list)
-            return (f"{ '󰄬' if in_list else ' ' } "
-                    f"{ '' if entry.path.is_dir() else '' } "
+            in_list = entry.path.is_symlink() and any(entry.path == e.path for e in self.__file_list)
+            return (f"{ '\x1b[48;5;34m󰄬' if in_list else ' ' } "
+                    f"{ '\x1b[34m' if entry.path.is_dir() else '' } "
                     f"[{ '*' if entry.selected else ' ' }] "
-                    f"{i:2d} {entry.path.name}")
+                    f"{i:2d} {entry.path.name}\x1b[0m")
 
         dir_viewer = FileViewer("Filesystem", self.__dir_list)
+
         dir_viewer.add_command({"cd"}, self.__change_dir)
         dir_viewer.add_command({"add", "a"}, self.add_selection)
         dir_viewer.add_command({"list", "l"}, self.list_view)
+
+        dir_viewer.set_help_line("cd <id> -> change dir; a -> add selection; list -> show registered files;")
+
         dir_viewer.show(__dir_print)
 
 
     def list_view(self, _: str):
         file_viewer = FileViewer("Dotter", self.__file_list)
+
         file_viewer.add_command({"delete", "d", "remove", "r"}, self.delete_selection)
         file_viewer.add_command({"edit", "e"}, self.edit_selection)
         file_viewer.add_command({"create", "c", "setup", "s"}, self.setup_selection)
+
+        file_viewer.set_help_line("d -> delete selection; e -> edit selection; s -> setup selected files;")
+
         file_viewer.show()
 
 
@@ -301,12 +322,10 @@ class Dotter:
 
             print(f"\t* Setup {dest}...")
             if dest.exists():
-                print(f"\t!! ALREADY EXISTS, skipping")
+                print(f"\t\x1b[1;91m!!\x1b[0m ALREADY EXISTS, skipping")
                 continue
             dest.parent.mkdir(exist_ok=True, parents=True)
             dest.symlink_to(source)
-
-        print("-- Done --")
 
 
 if __name__ == "__main__":
