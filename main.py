@@ -1,13 +1,14 @@
-from pathlib import Path
-import json
-from typing import Callable
 import hashlib
-import re
+import json
 from operator import attrgetter
+from pathlib import Path
+from typing import Callable
+import re
 
-DB_DIR: Path    = Path("~/.cache/dotter/dots/").expanduser().absolute()
-DB_FILE: Path   = Path("~/.cache/dotter/files.json").expanduser().absolute()
+# TODO: Cleanup method to remove files not registered in json
 
+DB_DIR  : Path    = Path("~/.cache/dotter/dots/").expanduser().absolute()
+DB_FILE : Path   = Path("~/.cache/dotter/files.json").expanduser().absolute()
 
 # TODO: Timestamps?
 class FileEntry:
@@ -71,20 +72,21 @@ class FileViewer:
 
 
     def __init__(self, viewer_name: str, file_list: FileList):
-        self.file_list: FileList    = file_list
-        self.commands: CommandList  = []
-        self.name: str              = viewer_name
+        self.file_list      : FileList      = file_list
+        self.commands       : CommandList   = []
+        self.name           : str           = viewer_name
 
-        self.__running: bool        = True
-        self.__set_value: bool      = True
-        self.__view_list: FileList  = file_list
-        self.__help_line: str       = ""
+        self.__running      : bool          = True
+        self.__set_value    : bool          = True
+        self.__view_list    : FileList      = file_list
+        self.__help_line    : str           = ""
 
         self.add_command({"quit", "q", "exit"}, self.quit_view)
 
 
     def add_command(self, command_list: set[str], callback: CommandCallback):
         self.commands.append((command_list, callback))
+
 
     def set_help_line(self, line: str):
         self.__help_line = line
@@ -156,6 +158,15 @@ class Dotter:
         with DB_FILE.open("w+") as fl:
             json.dump(data, fl)
 
+
+    def __read_cwd(self):
+        self.__dir_list.clear()
+        self.__dir_list.extend([
+            FileEntry(file) for file in list(self.__cwd.iterdir())])
+
+        self.__dir_list.sort(key=attrgetter("path"))
+        self.__dir_list.sort(key=lambda x: x.path.is_dir(), reverse=True)
+
     
     def __change_dir(self, cmd: str):
         cmd_list = cmd.split()
@@ -181,22 +192,15 @@ class Dotter:
             return
 
         self.__cwd = new_cwd.path
-
-        self.__dir_list.clear()
-        self.__dir_list.extend([
-            FileEntry(file) for file in list(self.__cwd.iterdir())])
-
-        self.__dir_list.sort(key=attrgetter("path"))
-        self.__dir_list.sort(key=lambda x: x.path.is_dir(), reverse=True)
+        self.__read_cwd()
 
 
     def __init__(self):
-        self.__file_list: FileList  = self.__load_db()
-        self.__cwd: Path            = Path.cwd()
+        self.__file_list    : FileList  = self.__load_db()
+        self.__cwd          : Path      = Path.cwd()
+        self.__dir_list     : FileList  = []
 
-        self.__dir_list: FileList   = [
-            FileEntry(file) for file in list(self.__cwd.iterdir())]
-
+        self.__read_cwd()
         DB_DIR.mkdir(exist_ok=True, parents=True)
 
 
@@ -222,7 +226,10 @@ class Dotter:
 
             print(f"\t* Linking {source}...")
             with dest.open('wb+') as fl:
-                fl.write(source.read_bytes())
+                buf = source.read_bytes()
+                if fl.write(buf) != len(buf):
+                    print(f"\t\x1b[1;91m!!\x1b[0m Could not write all of {source}, leaving file")
+                    continue
             source.unlink()
             source.symlink_to(dest)
 
@@ -258,7 +265,10 @@ class Dotter:
 
             dest.parent.mkdir(parents=True, exist_ok=True)
             with dest.open('wb+') as fl:
-                fl.write(source.read_bytes())
+                buf = source.read_bytes()
+                if fl.write(buf) != len(buf):
+                    print(f"\t\x1b[1;91m!!\x1b[0m Could not write all to {dest}, leaving file in database")
+                    continue
             source.unlink()
             remove_indices.append(i)
 
@@ -288,7 +298,7 @@ class Dotter:
         dir_viewer.add_command({"add", "a"}, self.add_selection)
         dir_viewer.add_command({"list", "l"}, self.list_view)
 
-        dir_viewer.set_help_line("cd <id> -> change dir; a -> add selection; list -> show registered files;")
+        dir_viewer.set_help_line("cd <id|..> -> change dir; a -> add selection; l -> show registered files;")
 
         dir_viewer.show(__dir_print)
 
