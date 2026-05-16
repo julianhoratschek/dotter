@@ -15,15 +15,25 @@ Linux/Unix Dot-file manager for configuration files
 :leftwards_arrow_with_hook: Easily reset changes: removing a file from Dotter will move it back to its original location
 
 
+## Background :bomb:
+
+- Dotter Allows the user to select files from the system
+- Each selected file will be moved to ~/.cache/dotter/dots/ (dots-folder)
+- For each file a symlink will be created at its original location
+- This allows for:
+    - Managing of the dots-folder with a version management system
+    - Easily setup your dots-files on a new system using dotters setup-function
+
+
 ## Usage :wrench:
 
 Dotter has two main-views:
 
-- [File-Manager](#file-manager) (for traversing directories and adding files)
-- [Dotter-View](#dotter-view) (for managing registered files: edit, delete, or setup system)
+- [File-Manager](#file-manager-view-open-file-folder) (for traversing directories and adding files)
+- [Dotter-View](#dotter-view-egg) (for managing registered files: edit, delete, or setup system)
 
 
-### All Managers :package:
+### All Views :package:
 
 All managers expose these commands:
 
@@ -50,7 +60,7 @@ Example:
 ```
 
 
-### File-Manager :open_file_folder:
+### File-Manager-View :open_file_folder:
 
 Displays files of the current working directory.
 
@@ -61,7 +71,7 @@ Exposes the following commands:
 | ------- | --------- | -------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
 | cd      |           | Changes working directory either to file indicated by ID or to parent directory when '..' is given as parameter                              | ID or '..' |
 | add     | a         | Adds all selected files to the database, moves files from their current location to Dotters collection directory and links them via symlinks |            |
-| list    | l         | Enters [Dotter-View](#dotter-view)                                                                                                           |            |
+| list    | l         | Enters [Dotter-View](#dotter-view-egg)                                                                                                       |            |
 
 
 
