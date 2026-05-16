@@ -30,7 +30,7 @@ external dependencies.
 ## Dependencies :package:
 
 - python >= 13.14 (probably also earlier versions)
-
+- (optional) NerdFonts (for Icons)
 
 ## Usage :wrench:
 
