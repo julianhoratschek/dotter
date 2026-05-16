@@ -26,7 +26,7 @@ def cl(msg: str, color: AC, mode: CM = CM.FG, close: bool = True) -> str:
     :param close:   Close Ansi-Code at end of msg
     :returns:       str, `msg` enclosed in corresponding ANSI-Codes
     """
-    reset = "" if close else f"\x1b[{mode + 1}m"
+    reset = f"\x1b[{mode + 1}m" if close else ""
     # if close:
     #     reset = "\x1b[39m" if mode == CM.FG else "\x1b[49m"
     return f"\x1b[{mode};5;{color}m{msg}{reset}"

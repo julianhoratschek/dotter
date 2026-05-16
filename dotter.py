@@ -176,6 +176,7 @@ class Dotter:
             if file_path.is_dir() or \
                 any(file_path.name == e.name for e in self.__file_list):
                 continue
+
             shutil.move(file_path, backup_folder)
             print(f"* Moved {file_path.name} to 'remove/'")
             moved_files += 1
