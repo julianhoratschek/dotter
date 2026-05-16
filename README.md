@@ -4,13 +4,15 @@ Linux/Unix Dot-file manager for configuration files
 
 ## Intended Use :thought_balloon:
 
-- Bundle config (and other) files in one location :inbox_tray:
-- Automatic management of symlinks on your system to have all programs always
-  find their respective config-files :paperclip:
-- Use a version-management system of your choice to manage all of your
-  config-files in one place :recycle:
-- Easily reset changes: removing a file from Dotter will move it back to its
-  original location :leftwards_arrow_with_hook:
+:inbox_tray: Bundle config (and other) files in one location
+
+:paperclip: Automatic management of symlinks on your system to have all programs always
+  find their respective config-files
+
+:recycle: Use a version-management system of your choice to manage all of your
+  config-files in one place
+
+:leftwards_arrow_with_hook: Easily reset changes: removing a file from Dotter will move it back to its original location
 
 
 ## Usage :wrench:
@@ -35,7 +37,7 @@ All managers expose these commands:
 
 
 
-#### Selection-Syntax :magnet:
+#### Selection-Syntax
 
 - Selects files by ID from the current View
 - Comma-Separated list of numbers or ranges
