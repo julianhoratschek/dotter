@@ -2,6 +2,7 @@ import json
 from pathlib import Path
 import hashlib
 from operator import attrgetter
+import shutil
 
 from file_viewer import FileViewer, FileEntry, FileList
 
@@ -29,7 +30,7 @@ class Dotter:
 
 
     def __is_registered(self, entry: FileEntry) -> bool:
-        # TODO: Might speeds up directory lookup, but messes with add_selection logic
+        # Might speeds up directory lookup but messes with add_selection logic
         # if not entry.path.is_symlink():
         #     return False
         if not entry.name:
@@ -129,6 +130,30 @@ class Dotter:
         self.__save_json()
 
 
+    def cleanup_list(self, _: str):
+        if 'Y' != input(bold(fg("***CAUTION***\n", AC.RED)) +
+                "This will remove all files from your JSON database with no existing source, as well as all files from your DB_DIR with no entry in your JSON database. Continue? (Y/n)"):
+            return
+
+        buf_list = self.__file_list.copy()
+        self.__file_list.clear()
+        self.__file_list.extend(e for e in buf_list if (DB_DIR / e.name).exists())
+
+        backup_folder = DB_DIR / "remove/"
+        moved_files = 0
+        for file_path in DB_DIR.iterdir():
+            if file_path.is_dir():
+                continue
+            if any(file_path.name == e.name for e in self.__file_list):
+                continue
+            shutil.move(file_path, backup_folder)
+            print(f"* Moved {file_path.name} to 'remove/'")
+            moved_files += 1
+
+        print(warn(f"Moved {moved_files} to {backup_folder}"))
+        self.__save_json()
+
+
     def delete_selection(self, _: str):
         if 'Y' != input(
             "Delete selected files? This will move config-files back to their original location (Y/n)"):
@@ -200,11 +225,13 @@ class Dotter:
         file_viewer.add_command({"delete", "d", "remove", "r"}, self.delete_selection)
         file_viewer.add_command({"edit", "e"}, self.edit_selection)
         file_viewer.add_command({"create", "c", "setup", "s"}, self.setup_selection)
+        file_viewer.add_command({"cleanup"}, self.cleanup_list)
 
         file_viewer.set_help_line(
             f"{fg('d', AC.BLUE)}elete -> delete selection; " +
             f"{fg('e', AC.BLUE)}dit -> edit selection; " +
-            f"{fg('s', AC.BLUE)}etup -> setup selected files")
+            f"{fg('s', AC.BLUE)}etup -> setup selected files; " +
+            f"{fg('cleanup', AC.BLUE)} -> cleanup database; ")
 
         file_viewer.show()
 
