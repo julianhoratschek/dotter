@@ -9,7 +9,7 @@ class CM(IntEnum):
     BG      = 48
 
 
-class AC(IntEnum):
+class AC(IntEnum): 
     """Describes ANSI-Color Scheme"""
     BLUE    = 105
     GREEN   = 34
