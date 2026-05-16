@@ -159,6 +159,16 @@ class Dotter:
             json.dump(data, fl)
 
 
+    def __is_registered(self, entry: FileEntry) -> bool:
+        if not entry.path.is_symlink():
+            return False
+        if not entry.name:
+            m = hashlib.md5()
+            m.update(bytes(entry.path))
+            entry.name = m.hexdigest()
+        return any(e.name == entry.name for e in self.__file_list)
+
+
     def __read_cwd(self):
         self.__dir_list.clear()
         self.__dir_list.extend([
@@ -215,13 +225,22 @@ class Dotter:
             if not dir_entry.selected:
                 continue
 
-            file_path = dir_entry.path
+            dir_entry.selected = False
 
-            m = hashlib.md5()
-            m.update(bytes(file_path))
+            if dir_entry.path.is_dir():
+                print(f"\x1b[38;5;220m󱞁\x1b Directories ({dir_entry.path}) will not be processed, please select files individually")
+                continue
 
-            file_entry = FileEntry(file_path, m.hexdigest())
-            source = file_path
+            # m = hashlib.md5()
+            # m.update(bytes(dir_entry.path))
+            #
+            # file_entry = FileEntry(dir_entry.path, m.hexdigest())
+            file_entry = FileEntry(dir_entry.path)
+            # This will set file_entry.name to md5 sum
+            if self.__is_registered(file_entry):
+                continue
+
+            source = dir_entry.path
             dest = DB_DIR / file_entry.name
 
             print(f"\t* Linking {source}...")
@@ -286,8 +305,8 @@ class Dotter:
 
     def main_view(self):
         def __dir_print(entry: FileEntry, i: int) -> str:
-            in_list = entry.path.is_symlink() and any(entry.path == e.path for e in self.__file_list)
-            return (f"{ '\x1b[48;5;34m󰄬' if in_list else ' ' } "
+            # in_list = entry.path.is_symlink() and any(entry.path == e.path for e in self.__file_list)
+            return (f"{ '\x1b[48;5;34m󰄬' if self.__is_registered(entry) else ' ' } "
                     f"{ '\x1b[34m' if entry.path.is_dir() else '' } "
                     f"[{ '*' if entry.selected else ' ' }] "
                     f"{i:2d} {entry.path.name}\x1b[0m")
