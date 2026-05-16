@@ -1,0 +1,230 @@
+import json
+from pathlib import Path
+import hashlib
+from operator import attrgetter
+
+from file_viewer import FileViewer, FileEntry, FileList
+
+from util import *
+
+class Dotter:
+    def __load_db(self) -> FileList:
+        if not DB_FILE.exists():
+            return []
+
+        with DB_FILE.open() as fl:
+            data = json.load(fl)
+
+        return [FileEntry(Path(file["path"]), file["name"])
+                for file in data["files"]]
+
+
+    def __save_json(self):
+        print("-- Write changes --")
+
+        data = {
+            "files": [entry.to_dict() for entry in self.__file_list] }
+
+        DB_FILE.parent.mkdir(exist_ok=True, parents=True)
+        with DB_FILE.open("w+") as fl:
+            json.dump(data, fl)
+
+
+    def __is_registered(self, entry: FileEntry) -> bool:
+        # if not entry.path.is_symlink():
+        #     return False
+        if not entry.name:
+            m = hashlib.md5()
+            m.update(bytes(entry.path))
+            entry.name = m.hexdigest()
+        return any(e.name == entry.name for e in self.__file_list)
+
+
+    def __read_cwd(self):
+        self.__dir_list.clear()
+        self.__dir_list.extend([
+            FileEntry(file) for file in list(self.__cwd.iterdir())])
+
+        self.__dir_list.sort(key=attrgetter("path"))
+        self.__dir_list.sort(key=lambda x: x.path.is_dir(), reverse=True)
+
+    
+    def __change_dir(self, cmd: str):
+        cmd_list = cmd.split()
+
+        if len(cmd_list) < 2:
+            print(err("Expected directory ID"))
+            return
+
+        if not cmd_list[1].isnumeric():
+            if cmd_list[1] != "..":
+                print(err("Expected directory ID to by numeric"))
+                return
+            new_cwd = FileEntry(self.__cwd.parent)
+
+        else:
+            idx = int(cmd_list[1])
+            if not (0 < idx < len(self.__dir_list)):
+                print(err("Directory ID is out of bounds"))
+                return
+            new_cwd = self.__dir_list[idx]
+
+        if not new_cwd.path.is_dir():
+            print(err("cd expects directory as target"))
+            return
+
+        self.__cwd = new_cwd.path
+        self.__read_cwd()
+
+
+    def __init__(self):
+        self.__file_list    : FileList  = self.__load_db()
+        self.__cwd          : Path      = Path.cwd()
+        self.__dir_list     : FileList  = []
+
+        self.__read_cwd()
+        DB_DIR.mkdir(exist_ok=True, parents=True)
+
+
+    def add_selection(self, _: str):
+        if 'Y' != input(
+            "Add selection? This will move config-files from their location (Y/n)"):
+            return
+
+        print("-- Adding selection --")
+
+        for dir_entry in self.__dir_list:
+            if not dir_entry.selected:
+                continue
+
+            dir_entry.selected = False
+
+            if dir_entry.path.is_dir():
+                print(warn(f"Directories ({dir_entry.path}) will not be processed, please select files individually"))
+                continue
+
+            # m = hashlib.md5()
+            # m.update(bytes(dir_entry.path))
+            # dir_entry.name = m.hexdigest()
+
+            if self.__is_registered(dir_entry):
+                print(warn(f"File {dir_entry.path} already registered, skipping"))
+                continue
+
+            source = dir_entry.path
+            dest = DB_DIR / dir_entry.name
+
+            with dest.open('wb+') as fl:
+                buf = source.read_bytes()
+                if fl.write(buf) != len(buf):
+                    print(err(f"Could not write all of {source}, leaving file"))
+                    continue
+            source.unlink()
+            source.symlink_to(dest)
+
+            self.__file_list.append(dir_entry)
+
+        self.__file_list.sort(key=attrgetter("path"))
+        self.__save_json()
+
+
+    def delete_selection(self, _: str):
+        if 'Y' != input(
+            "Delete selected files? This will move config-files back to their original location (Y/n)"):
+            return
+
+        print("-- Deleting selection --")
+
+        for entry in self.__file_list:
+            if not entry.selected:
+                continue
+
+            print(f"* Unlinking {entry.path}...")
+            source = DB_DIR / entry.name
+            dest = entry.path
+
+            if dest.exists():
+                if not dest.is_symlink() or dest.resolve() != source:
+                    print(err(f"{dest} appears to be a different file, skipping"))
+                    continue
+                dest.unlink()
+
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            with dest.open('wb+') as fl:
+                buf = source.read_bytes()
+                if fl.write(buf) != len(buf):
+                    print(err(f"Could not write all to {dest}, leaving file in database"))
+                    continue
+            source.unlink()
+
+        print("-- Updating internal list --")
+
+        buf_list = self.__file_list.copy()
+        self.__file_list.clear()
+        self.__file_list.extend(e for e in buf_list if not e.selected)
+
+        self.__save_json()
+
+
+    def edit_selection(self, cmd: str):
+        # TODO: Implement
+        print(err("Edit selection not implemented yet"))
+
+
+    def main_view(self):
+        def __dir_print(entry: FileEntry, i: int) -> str:
+            return (f"{ bg('󰄬', AC.GREEN, False) if self.__is_registered(entry) else ' ' } "
+                    f"{ fg('', AC.BLUE, False) if entry.path.is_dir() else '' } "
+                    f"[{ '*' if entry.selected else ' ' }] "
+                    f"{i:2d} {entry.path.name}\x1b[0m")
+
+        dir_viewer = FileViewer("Filesystem", self.__dir_list)
+
+        dir_viewer.add_command({"cd"}, self.__change_dir)
+        dir_viewer.add_command({"add", "a"}, self.add_selection)
+        dir_viewer.add_command({"list", "l"}, self.list_view)
+
+        dir_viewer.set_help_line(
+            f"{fg('cd', AC.BLUE)} <id|..> -> change dir; " +
+            f"{fg('a', AC.BLUE)}dd -> add selection; " +
+            f"{fg('l', AC.BLUE)}ist -> show registered files;")
+
+        dir_viewer.show(__dir_print)
+
+
+    def list_view(self, _: str):
+        file_viewer = FileViewer("Dotter", self.__file_list)
+
+        file_viewer.add_command({"delete", "d", "remove", "r"}, self.delete_selection)
+        file_viewer.add_command({"edit", "e"}, self.edit_selection)
+        file_viewer.add_command({"create", "c", "setup", "s"}, self.setup_selection)
+
+        file_viewer.set_help_line(
+            f"{fg('d', AC.BLUE)}elete -> delete selection; " +
+            f"{fg('e', AC.BLUE)}dit -> edit selection; " +
+            f"{fg('s', AC.BLUE)}etup -> setup selected files")
+
+        file_viewer.show()
+
+
+    def setup_selection(self, _: str):
+        # TODO: user-specific paths
+        if 'Y' != input(
+            "Start Setup? This will create new files on your system (Y/n)"):
+            return
+
+        print("-- Setup selection --")
+
+        for entry in self.__file_list:
+            if not entry.selected:
+                continue
+
+            source = DB_DIR / entry.name
+            dest = entry.path
+
+            print(f"\t* Setup {dest}...")
+            if dest.exists():
+                print(warn("Already exists, skipping"))
+                continue
+            dest.parent.mkdir(exist_ok=True, parents=True)
+            dest.symlink_to(source)
