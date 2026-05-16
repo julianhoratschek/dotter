@@ -140,7 +140,9 @@ class Dotter:
         self.__file_list.extend(e for e in buf_list if (DB_DIR / e.name).exists())
 
         backup_folder = DB_DIR / "remove/"
+        backup_folder.mkdir(exist_ok=True, parents=True)
         moved_files = 0
+
         for file_path in DB_DIR.iterdir():
             if file_path.is_dir():
                 continue
@@ -166,13 +168,15 @@ class Dotter:
             source = DB_DIR / entry.name
             dest = entry.path
 
+            print(f"* Restoring {dest}...")
+
             if not source.exists():
-                print(err(f"Could not find source file for {dest} (at {source}), removing register"))
+                print(err(f"Could not find source file for {dest} (at {source}), removing file from database, symlink will remain"))
                 continue
 
             if dest.exists():
                 if not dest.is_symlink() or dest.resolve() != source:
-                    print(err(f"{dest} appears to be a different file, skipping"))
+                    print(err(f"{dest} appears to be a different file, removing file from database"))
                     continue
                 dest.unlink()
 
@@ -181,10 +185,9 @@ class Dotter:
                 buf = source.read_bytes()
                 if fl.write(buf) != len(buf):
                     print(err(f"Could not write all to {dest}, leaving file in database"))
+                    entry.selected = False
                     continue
             source.unlink()
-
-        print("-- Updating internal list --")
 
         buf_list = self.__file_list.copy()
         self.__file_list.clear()
@@ -253,7 +256,7 @@ class Dotter:
 
             if not source.exists():
                 print(err(f"Could not find source file for {dest} (at {source})"))
-                print(warn("\tYou might want to clean your registry using 'clean' command in list-view"))
+                print(warn("\tYou might want to clean your database using 'cleanup' command in list-view"))
                 continue
 
             if dest.exists():
