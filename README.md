@@ -1,40 +1,41 @@
-# Dotter
+# Dotter :chicken:
 
 Linux/Unix Dot-file manager for configuration files
 
-## Intended Use
+## Intended Use :thought_balloon:
 
-- Bundle config (and other) files in one location
+- Bundle config (and other) files in one location :inbox_tray:
 - Automatic management of symlinks on your system to have all programs always
-  find their respective config-files
+  find their respective config-files :paperclip:
 - Use a version-management system of your choice to manage all of your
-  config-files in one place
+  config-files in one place :recycle:
 - Easily reset changes: removing a file from Dotter will move it back to its
-  original location
+  original location :leftwards_arrow_with_hook:
 
 
-## Usage
+## Usage :wrench:
 
 Dotter has two main-views:
-    - [File-Manager](#file-manager) (for traversing directories and adding files)
-    - [Dotter-View](#dotter-view) (for managing registered files: edit, delete, or setup system)
+
+- [File-Manager](#file-manager) (for traversing directories and adding files)
+- [Dotter-View](#dotter-view) (for managing registered files: edit, delete, or setup system)
 
 
-### All Managers
+### All Managers :package:
 
 All managers expose these commands:
 
 
-| Command     | Alias(es)  | Description                                       | Parameters                            |
-| ----------- | ---------- | ------------------------------------------------- | ------------------------------------- |
-| quit        | q, exit, e | Closes current View                          |                                       |
-| /           |            | Filters current View by regex                     | Regex-String or empty to reset filter |
-| !           |            | Switches selection mode to 'select' or 'deselect' |                                       |
-| <selection> |            | See [Selection-Syntax](#selection-syntax)         |                                       |
+| Command          | Alias(es)  | Description                                       | Parameters                            |
+| ---------------- | ---------- | ------------------------------------------------- | ------------------------------------- |
+| quit             | q, exit, e | Closes current View                               |                                       |
+| /                |            | Filters current View by regex                     | Regex-String or empty to reset filter |
+| !                |            | Switches selection mode to 'select' or 'deselect' |                                       |
+| Selection-Syntax |            | See [Selection-Syntax](#selection-syntax)         |                                       |
 
 
 
-#### Selection-Syntax
+#### Selection-Syntax :magnet:
 
 - Selects files by ID from the current View
 - Comma-Separated list of numbers or ranges
@@ -47,23 +48,25 @@ Example:
 ```
 
 
-### File-Manager
+### File-Manager :open_file_folder:
 
 Displays files of the current working directory.
+
 Exposes the following commands:
 
 
-| Command | Alias(es) | Description                                                                                                                                  | Parameters   |
-| ------- | --------- | -------------------------------------------------------------------------------------------------------------------------------------------- | ------------ |
-| cd      |           | Changes working directory either to file indicated by <id> or to parent directory when '..' is given as parameter                            | <id> or '..' |
-| add     | a         | Adds all selected files to the database, moves files from their current location to Dotters collection directory and links them via symlinks |              |
-| list    | l         | Enters [Dotter-View](#dotter-view)                                                                                                      |              |
+| Command | Alias(es) | Description                                                                                                                                  | Parameters |
+| ------- | --------- | -------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
+| cd      |           | Changes working directory either to file indicated by ID or to parent directory when '..' is given as parameter                              | ID or '..' |
+| add     | a         | Adds all selected files to the database, moves files from their current location to Dotters collection directory and links them via symlinks |            |
+| list    | l         | Enters [Dotter-View](#dotter-view)                                                                                                           |            |
 
 
 
-### Dotter-View
+### Dotter-View :egg:
 
-Displays all registered config-files
+Displays all registered config-files.
+
 Exposes the following commands:
 
 
