@@ -4,11 +4,46 @@ from operator import attrgetter
 from pathlib import Path
 from typing import Callable
 import re
+from enum import StrEnum
 
 # TODO: Cleanup method to remove files not registered in json
 
 DB_DIR  : Path    = Path("~/.cache/dotter/dots/").expanduser().absolute()
 DB_FILE : Path   = Path("~/.cache/dotter/files.json").expanduser().absolute()
+
+
+def err(msg: str) -> str:
+    return f"\x1b[1;91m!!\x1b[0m {msg}"
+
+def warn(msg: str) -> str:
+    return f"\x1b[38;5;220m󱞁\x1b[0m {msg}"
+
+def bold(msg: str) -> str:
+    return f"\x1b[1m{msg}\x1b[22m"
+
+class CM(StrEnum):
+    FG = "38;5;"
+    BG = "48;5;"
+
+class AC(StrEnum):
+    RED = "124"
+    GREEN = "34"
+    GREY = "240"
+    BLUE = "105"
+
+
+def cl(msg: str, color: AC, mode: CM = CM.FG, close: bool = True) -> str:
+    reset = ""
+    if close:
+        reset = "\x1b[39m" if mode == CM.FG else "\x1b[49m"
+    return f"\x1b[{mode}{color}m{msg}{reset}"
+
+def fg(msg: str, color: AC, close: bool = True) -> str:
+    return cl(msg, color, CM.FG, close)
+
+def bg(msg: str, color: AC, close: bool = True) -> str:
+    return cl(msg, color, CM.BG, close)
+
 
 # TODO: Timestamps?
 class FileEntry:
@@ -30,9 +65,9 @@ type FileList           = list[FileEntry]
 class FileViewer:
     @staticmethod
     def __default_print(entry: FileEntry, i: int) -> str:
-        return (f"{ '\x1b[34m' if entry.path.is_dir() else ''} "
+        return (f"{fg('', AC.BLUE,False) if entry.path.is_dir() else ''} "
                 f"[{'*' if entry.selected else ' '}] "
-                f"{i:2d} {entry.path.name}")
+                f"{i:2d} {entry.path.name}\x1b[0m")
 
 
     def __process_line(self, cmd_line: str):
@@ -52,13 +87,13 @@ class FileViewer:
                         break
                     
                     case _:
-                        print("\x1b[1;91m!!\x1b[0m Expected list of numbers, ranges or * in file selection")
+                        print(err("Expected list of numbers, ranges or * in file selection"))
                         return
                 continue
 
             end = int(cmd)
             if 0 > end >= len(self.__view_list):
-                print(f"\x1b[1;91m!!\x1b[0m Index {end} not an option in the selection list")
+                print(err(f"Index {end} not an option in the selection list"))
                 return
 
             if is_range:
@@ -78,7 +113,7 @@ class FileViewer:
 
         self.__running      : bool          = True
         self.__set_value    : bool          = True
-        self.__view_list    : FileList      = file_list
+        self.__view_list    : FileList      = file_list.copy()
         self.__help_line    : str           = ""
 
         self.add_command({"quit", "q", "exit"}, self.quit_view)
@@ -94,15 +129,18 @@ class FileViewer:
 
     def show(self, print_callback: PrintCallback = __default_print):
         while self.__running:
-            print(f"\n{' \x1b[1m' + self.name + '\x1b[0m ':-^60}\n")
+            print(f"\n{' ' + bold(self.name) + ' ':-^60}\n")
             for i, entry in enumerate(self.__view_list):
                 print(print_callback(entry, i))
 
             print(f"\n{'-':-^53}")
-            print(f"Viewer: \x1b[1m{self.name}\x1b[0m, Mode: \x1b[1m{'\x1b[38;5;34mselect' if self.__set_value else '\x1b[38;5;124mdeselect'}\x1b[0m")
-            print("\x1b[48;5;240mq -> quit viewer; / -> filter; ! -> switch selection mode\x1b[0m")
+            print(f"Viewer: {bold(self.name)}, Mode: {bold(fg('select', AC.GREEN) if self.__set_value else fg('deselect', AC.RED))}")
+            print(bg(
+                f"{fg('q', AC.BLUE)}uit -> quit viewer; " +
+                f"{fg('/', AC.BLUE)} -> filter; " +
+                f"{fg('!', AC.BLUE)} -> switch selection mode", AC.GREY))
             if self.__help_line:
-                print(f"\x1b[48;5;240m{self.__help_line}\x1b[0m")
+                print(bg(self.__help_line, AC.GREY))
 
             if not (cmd := input(">> ").strip()):
                 continue
@@ -111,7 +149,7 @@ class FileViewer:
                 case '/':
                     # TODO: fuzzy matching
                     if not cmd[1:]:
-                        self.__view_list = self.file_list
+                        self.__view_list = self.file_list.copy()
                     else:
                         self.__view_list = [entry for entry in self.file_list
                                             if re.search(cmd[1:], str(entry.path))]
@@ -182,23 +220,23 @@ class Dotter:
         cmd_list = cmd.split()
 
         if len(cmd_list) < 2:
-            print("\x1b[1;91m!!\x1b[0m Expected directory ID")
+            print(err("Expected directory ID"))
             return
 
         if not cmd_list[1].isnumeric():
             if cmd_list[1] != "..":
-                print("\x1b[1;91m!!\x1b[0m Expected directory ID to by numeric")
+                print(err("Expected directory ID to by numeric"))
                 return
             new_cwd = FileEntry(self.__cwd.parent)
         else:
             idx = int(cmd_list[1])
             if not (0 < idx < len(self.__dir_list)):
-                print("\x1b[1;91m!!\x1b[0m Directory ID is out of bounds")
+                print(err("Directory ID is out of bounds"))
                 return
             new_cwd = self.__dir_list[idx]
 
         if not new_cwd.path.is_dir():
-            print("\x1b[1;91m!!\x1b[0m cd expects directory as target")
+            print(err("cd expects directory as target"))
             return
 
         self.__cwd = new_cwd.path
@@ -228,7 +266,7 @@ class Dotter:
             dir_entry.selected = False
 
             if dir_entry.path.is_dir():
-                print(f"\x1b[38;5;220m󱞁\x1b Directories ({dir_entry.path}) will not be processed, please select files individually")
+                print(warn(f"Directories ({dir_entry.path}) will not be processed, please select files individually"))
                 continue
 
             # m = hashlib.md5()
@@ -238,16 +276,17 @@ class Dotter:
             file_entry = FileEntry(dir_entry.path)
             # This will set file_entry.name to md5 sum
             if self.__is_registered(file_entry):
+                print(warn(f"File {dir_entry.path} already registered, skipping"))
                 continue
+            print(file_entry.name)
 
             source = dir_entry.path
             dest = DB_DIR / file_entry.name
 
-            print(f"\t* Linking {source}...")
             with dest.open('wb+') as fl:
                 buf = source.read_bytes()
                 if fl.write(buf) != len(buf):
-                    print(f"\t\x1b[1;91m!!\x1b[0m Could not write all of {source}, leaving file")
+                    print(err(f"Could not write all of {source}, leaving file"))
                     continue
             source.unlink()
             source.symlink_to(dest)
@@ -272,13 +311,13 @@ class Dotter:
             if not entry.selected:
                 continue
 
-            print(f"\t* Unlinking {entry.path}...")
+            print(f"* Unlinking {entry.path}...")
             source = DB_DIR / entry.name
             dest = entry.path
 
             if dest.exists():
                 if not dest.is_symlink() or dest.resolve() != source:
-                    print(f"\t\x1b[1;91m!!\x1b[0m {dest} appears to be a different file, skipping")
+                    print(err(f"{dest} appears to be a different file, skipping"))
                     continue
                 dest.unlink()
 
@@ -286,7 +325,7 @@ class Dotter:
             with dest.open('wb+') as fl:
                 buf = source.read_bytes()
                 if fl.write(buf) != len(buf):
-                    print(f"\t\x1b[1;91m!!\x1b[0m Could not write all to {dest}, leaving file in database")
+                    print(err(f"Could not write all to {dest}, leaving file in database"))
                     continue
             source.unlink()
             remove_indices.append(i)
@@ -306,8 +345,8 @@ class Dotter:
     def main_view(self):
         def __dir_print(entry: FileEntry, i: int) -> str:
             # in_list = entry.path.is_symlink() and any(entry.path == e.path for e in self.__file_list)
-            return (f"{ '\x1b[48;5;34m󰄬' if self.__is_registered(entry) else ' ' } "
-                    f"{ '\x1b[34m' if entry.path.is_dir() else '' } "
+            return (f"{ bg('󰄬', AC.GREEN, False) if self.__is_registered(entry) else ' ' } "
+                    f"{ fg('', AC.BLUE, False) if entry.path.is_dir() else '' } "
                     f"[{ '*' if entry.selected else ' ' }] "
                     f"{i:2d} {entry.path.name}\x1b[0m")
 
@@ -317,7 +356,10 @@ class Dotter:
         dir_viewer.add_command({"add", "a"}, self.add_selection)
         dir_viewer.add_command({"list", "l"}, self.list_view)
 
-        dir_viewer.set_help_line("cd <id|..> -> change dir; a -> add selection; l -> show registered files;")
+        dir_viewer.set_help_line(
+            f"{fg('cd', AC.BLUE)} <id|..> -> change dir; " +
+            f"{fg('a', AC.BLUE)}dd -> add selection; " +
+            f"{fg('l', AC.BLUE)}ist -> show registered files;")
 
         dir_viewer.show(__dir_print)
 
@@ -329,7 +371,10 @@ class Dotter:
         file_viewer.add_command({"edit", "e"}, self.edit_selection)
         file_viewer.add_command({"create", "c", "setup", "s"}, self.setup_selection)
 
-        file_viewer.set_help_line("d -> delete selection; e -> edit selection; s -> setup selected files;")
+        file_viewer.set_help_line(
+            f"{fg('d', AC.BLUE)}elete -> delete selection; " +
+            f"{fg('e', AC.BLUE)}dit -> edit selection; " +
+            f"{fg('s', AC.BLUE)}etup -> setup selected files")
 
         file_viewer.show()
 
@@ -351,7 +396,7 @@ class Dotter:
 
             print(f"\t* Setup {dest}...")
             if dest.exists():
-                print(f"\t\x1b[1;91m!!\x1b[0m ALREADY EXISTS, skipping")
+                print(warn("ALREADY EXISTS, skipping"))
                 continue
             dest.parent.mkdir(exist_ok=True, parents=True)
             dest.symlink_to(source)
