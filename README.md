@@ -1,6 +1,8 @@
 # Dotter :chicken:
 
-Linux/Unix Dot-file manager for configuration files
+Linux/Unix Dot-file manager for configuration files in pure python without
+external dependencies.
+
 
 ## Intended Use :thought_balloon:
 
@@ -25,15 +27,26 @@ Linux/Unix Dot-file manager for configuration files
     - Easily setup your dots-files on a new system using dotters setup-function
 
 
+## Dependencies :package:
+
+- python >= 13.14 (probably also earlier versions)
+
+
 ## Usage :wrench:
 
 Dotter has two main-views:
 
-- [File-Manager](#file-manager-view-open-file-folder) (for traversing directories and adding files)
+- [File-Manager](#file-manager-view-open_file_folder) (for traversing directories and adding files)
 - [Dotter-View](#dotter-view-egg) (for managing registered files: edit, delete, or setup system)
 
+Execution:
 
-### All Views :package:
+```bash
+python main.py
+```
+
+
+### All Views :letter:
 
 All managers expose these commands:
 
