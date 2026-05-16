@@ -20,8 +20,6 @@ class Dotter:
 
 
     def __save_json(self):
-        print("-- Write changes --")
-
         data = {
             "files": [entry.to_dict() for entry in self.__file_list] }
 
@@ -31,6 +29,7 @@ class Dotter:
 
 
     def __is_registered(self, entry: FileEntry) -> bool:
+        # TODO: Might speeds up directory lookup, but messes with add_selection logic
         # if not entry.path.is_symlink():
         #     return False
         if not entry.name:
@@ -91,8 +90,6 @@ class Dotter:
             "Add selection? This will move config-files from their location (Y/n)"):
             return
 
-        print("-- Adding selection --")
-
         for dir_entry in self.__dir_list:
             if not dir_entry.selected:
                 continue
@@ -103,16 +100,20 @@ class Dotter:
                 print(warn(f"Directories ({dir_entry.path}) will not be processed, please select files individually"))
                 continue
 
-            # m = hashlib.md5()
-            # m.update(bytes(dir_entry.path))
-            # dir_entry.name = m.hexdigest()
-
-            if self.__is_registered(dir_entry):
-                print(warn(f"File {dir_entry.path} already registered, skipping"))
-                continue
+            # This sets name for dir_entry
+            already_registered = self.__is_registered(dir_entry)
 
             source = dir_entry.path
             dest = DB_DIR / dir_entry.name
+
+            if already_registered:
+                print(warn(f"File {dir_entry.path} already registered, try to update"))
+
+                if dir_entry.path.is_symlink():
+                    source = source.resolve().expanduser().absolute()
+                    if source == dest:
+                        print(warn(f"File {dir_entry.path} is a symlink to the already registered file, skipping"))
+                        continue
 
             with dest.open('wb+') as fl:
                 buf = source.read_bytes()
@@ -133,15 +134,16 @@ class Dotter:
             "Delete selected files? This will move config-files back to their original location (Y/n)"):
             return
 
-        print("-- Deleting selection --")
-
         for entry in self.__file_list:
             if not entry.selected:
                 continue
 
-            print(f"* Unlinking {entry.path}...")
             source = DB_DIR / entry.name
             dest = entry.path
+
+            if not source.exists():
+                print(err(f"Could not find source file for {dest} (at {source}), removing register"))
+                continue
 
             if dest.exists():
                 if not dest.is_symlink() or dest.resolve() != source:
@@ -176,7 +178,7 @@ class Dotter:
             return (f"{ bg('󰄬', AC.GREEN, False) if self.__is_registered(entry) else ' ' } "
                     f"{ fg('', AC.BLUE, False) if entry.path.is_dir() else '' } "
                     f"[{ '*' if entry.selected else ' ' }] "
-                    f"{i:2d} {entry.path.name}\x1b[0m")
+                    f"{i:3d} {entry.path.name}\x1b[0m")
 
         dir_viewer = FileViewer("Filesystem", self.__dir_list)
 
@@ -213,8 +215,6 @@ class Dotter:
             "Start Setup? This will create new files on your system (Y/n)"):
             return
 
-        print("-- Setup selection --")
-
         for entry in self.__file_list:
             if not entry.selected:
                 continue
@@ -222,9 +222,16 @@ class Dotter:
             source = DB_DIR / entry.name
             dest = entry.path
 
-            print(f"\t* Setup {dest}...")
-            if dest.exists():
-                print(warn("Already exists, skipping"))
+            print(f"* Setup {dest}...")
+
+            if not source.exists():
+                print(err(f"Could not find source file for {dest} (at {source})"))
+                print(warn("\tYou might want to clean your registry using 'clean' command in list-view"))
                 continue
+
+            if dest.exists():
+                print(warn(f"{dest} already exists, skipping"))
+                continue
+
             dest.parent.mkdir(exist_ok=True, parents=True)
             dest.symlink_to(source)

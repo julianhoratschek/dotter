@@ -95,6 +95,7 @@ class FileViewer:
             print(f"\n{'-':-^53}")
             print(f"Viewer: {bold(self.name)}, " +
                   f"Mode: {bold(fg('select', AC.GREEN) if self.__set_value else fg('deselect', AC.RED))}")
+            print(bg(bold("***Commands***"), AC.GREY))
             print(bg(
                 f"{fg('q', AC.BLUE)}uit -> quit viewer; " +
                 f"{fg('/', AC.BLUE)} -> filter; " +
