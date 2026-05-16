@@ -1,35 +1,35 @@
-from pathlib import Path
-from enum import StrEnum
-
-DB_DIR  : Path    = Path("~/.cache/dotter/dots/").expanduser().absolute()
-DB_FILE : Path   = Path("~/.cache/dotter/files.json").expanduser().absolute()
+from enum import IntEnum
 
 
-def err(msg: str) -> str:
-    return f"\x1b[1;91m!!\x1b[0m {msg}"
+# String formatting functions for logging
 
-def warn(msg: str) -> str:
-    return f"\x1b[38;5;220m󱞁\x1b[0m {msg}"
+class CM(IntEnum):
+    """Describes ANSI-Color for Foreground or Background"""
+    FG      = 38
+    BG      = 48
 
-def bold(msg: str) -> str:
-    return f"\x1b[1m{msg}\x1b[22m"
 
-class CM(StrEnum):
-    FG = "38;5;"
-    BG = "48;5;"
-
-class AC(StrEnum):
-    RED = "124"
-    GREEN = "34"
-    GREY = "240"
-    BLUE = "105"
+class AC(IntEnum):
+    """Describes ANSI-Color Scheme"""
+    BLUE    = 105
+    GREEN   = 34
+    GREY    = 240
+    RED     = 124
+    YELLOW  = 220
 
 
 def cl(msg: str, color: AC, mode: CM = CM.FG, close: bool = True) -> str:
-    reset = ""
-    if close:
-        reset = "\x1b[39m" if mode == CM.FG else "\x1b[49m"
-    return f"\x1b[{mode}{color}m{msg}{reset}"
+    """Set color for text
+    :param msg:     String to color with ANSI-Colors
+    :param color:   Ansi-Color code as AC-Enum
+    :param mode:    Ansi-Code for foreground or background as CM-Enum
+    :param close:   Close Ansi-Code at end of msg
+    :returns:       str, `msg` enclosed in corresponding ANSI-Codes
+    """
+    reset = "" if close else f"\x1b[{mode + 1}m"
+    # if close:
+    #     reset = "\x1b[39m" if mode == CM.FG else "\x1b[49m"
+    return f"\x1b[{mode};5;{color}m{msg}{reset}"
 
 def fg(msg: str, color: AC, close: bool = True) -> str:
     return cl(msg, color, CM.FG, close)
@@ -37,6 +37,14 @@ def fg(msg: str, color: AC, close: bool = True) -> str:
 def bg(msg: str, color: AC, close: bool = True) -> str:
     return cl(msg, color, CM.BG, close)
 
+def err(msg: str) -> str:
+    return f"\x1b[91m!!\x1b[0m {msg}"
+
+def warn(msg: str) -> str:
+    return f"\x1b[38;5;220m󱞁\x1b[0m {msg}"
+
+def bold(msg: str) -> str:
+    return f"\x1b[1m{msg}\x1b[22m"
 
 
 

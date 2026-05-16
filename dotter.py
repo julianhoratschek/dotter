@@ -8,7 +8,22 @@ from file_viewer import FileViewer, FileEntry, FileList
 
 from util import *
 
+# Define Constants
+
+DB_DIR  : Path    = Path("~/.cache/dotter/dots/").expanduser().absolute()
+DB_FILE : Path   = Path("~/.cache/dotter/files.json").expanduser().absolute()
+
+
 class Dotter:
+    """
+    Main class for this program, manages different viewers, JSON-database
+    and move- and copy functionality
+
+    :ivar __file_list:  Internal list of all registered files in JSON-database
+    :ivar __cwd      :  Current working directory for file browser
+    :ivar __dir_list :  Current list of files in cwd
+    """
+
     def __load_db(self) -> FileList:
         if not DB_FILE.exists():
             return []
@@ -21,35 +36,47 @@ class Dotter:
 
 
     def __save_json(self):
-        data = {
-            "files": [entry.to_dict() for entry in self.__file_list] }
+        data = { "files": [entry.to_dict() for entry in self.__file_list] }
 
         DB_FILE.parent.mkdir(exist_ok=True, parents=True)
         with DB_FILE.open("w+") as fl:
             json.dump(data, fl)
 
 
+    # TODO: have self.__file_list as hashmap[md5 -> path] instead of list?
     def __is_registered(self, entry: FileEntry) -> bool:
+        """
+        Returns True, if entry is found in the current `__file_list`. Mutates
+        `entry`, sets `entry.name` to the md5-hash of `entry.path`
+        """
+
         # Might speeds up directory lookup but messes with add_selection logic
         # if not entry.path.is_symlink():
         #     return False
+
         if not entry.name:
             m = hashlib.md5()
             m.update(bytes(entry.path))
             entry.name = m.hexdigest()
+
         return any(e.name == entry.name for e in self.__file_list)
 
 
     def __read_cwd(self):
+        """Load content of cwd into __dir_list without changing instances"""
         self.__dir_list.clear()
         self.__dir_list.extend([
             FileEntry(file) for file in list(self.__cwd.iterdir())])
 
+        # Sort by pathname
         self.__dir_list.sort(key=attrgetter("path"))
+        # Sort by dir/files
         self.__dir_list.sort(key=lambda x: x.path.is_dir(), reverse=True)
 
     
     def __change_dir(self, cmd: str):
+        """Change `self.__cwd` and update `self.__dir_list`"""
+
         cmd_list = cmd.split()
 
         if len(cmd_list) < 2:
@@ -78,9 +105,9 @@ class Dotter:
 
 
     def __init__(self):
-        self.__file_list    : FileList  = self.__load_db()
-        self.__cwd          : Path      = Path.cwd()
-        self.__dir_list     : FileList  = []
+        self.__file_list: FileList  = self.__load_db()
+        self.__cwd      : Path      = Path.cwd()
+        self.__dir_list : FileList  = []
 
         self.__read_cwd()
         DB_DIR.mkdir(exist_ok=True, parents=True)
@@ -111,7 +138,7 @@ class Dotter:
                 print(warn(f"File {dir_entry.path} already registered, try to update"))
 
                 if dir_entry.path.is_symlink():
-                    source = source.resolve().expanduser().absolute()
+                    source = source.resolve().absolute()
                     if source == dest:
                         print(warn(f"File {dir_entry.path} is a symlink to the already registered file, skipping"))
                         continue
@@ -135,18 +162,19 @@ class Dotter:
                 "This will remove all files from your JSON database with no existing source, as well as all files from your DB_DIR with no entry in your JSON database. Continue? (Y/n)"):
             return
 
+        # Remove entries from __file_list without corresponding source files
         buf_list = self.__file_list.copy()
         self.__file_list.clear()
         self.__file_list.extend(e for e in buf_list if (DB_DIR / e.name).exists())
 
+        # Move files without entries in JSON-database to DB_DIR/remove/
         backup_folder = DB_DIR / "remove/"
         backup_folder.mkdir(exist_ok=True, parents=True)
         moved_files = 0
 
         for file_path in DB_DIR.iterdir():
-            if file_path.is_dir():
-                continue
-            if any(file_path.name == e.name for e in self.__file_list):
+            if file_path.is_dir() or \
+                any(file_path.name == e.name for e in self.__file_list):
                 continue
             shutil.move(file_path, backup_folder)
             print(f"* Moved {file_path.name} to 'remove/'")
