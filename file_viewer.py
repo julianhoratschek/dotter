@@ -14,16 +14,19 @@ class FileEntry:
     def to_dict(self) -> dict[str, str]:
         return { "path": str(self.path.expanduser().absolute()), "name": self.name }
 
+type CommandCallback    = Callable[[str], None]
 
-# Typedefs for readability of annotations
+class ViewerCommand:
+    def __init__(self, cmds: set[str], callback: CommandCallback, help_text: str):
+        self.commands : set[str]        = cmds
+        self.callback : CommandCallback = callback
+        self.help_text: str             = help_text
 
+type CommandList = list[ViewerCommand]
 type PrintCallback      = Callable[[FileEntry, int], str]
 type FileList           = list[FileEntry]
-type CommandCallback    = Callable[[str], None]
-type CommandList        = list[tuple[set[str], CommandCallback]]
 
 
-# TODO: helpscreens in file_viewer
 class FileViewer:
     """
     Displays a list of files and enables the user to interact with it by
@@ -41,7 +44,13 @@ class FileViewer:
 
     @staticmethod
     def __default_print(entry: FileEntry, i: int) -> str:
-        """Default method for displaying a file of the internal file list"""
+        """
+        Default method for displaying a file of the internal file list
+
+        :param entry:   Current file entry to display
+        :param i    :   Index of the current file display (0-based)
+        :resurns    :   String to display per line
+        """
 
         return (f"{fg('', AC.BLUE,False) if entry.path.is_dir() else ''} "    # Display directories with icon and blue color
                 f"[{'*' if entry.selected else ' '}] "                                          # Display selection by a ticked/unticked box
@@ -54,7 +63,8 @@ class FileViewer:
         line of numbers indicating IDs of the displayed file list for selection
         """
 
-        cmd_list = cmd_line.replace(',', ' ').split()
+        # TODO: ugly...
+        cmd_list = cmd_line.replace(',', ' ').replace('-', ' - ').split()
         begin = 0
         is_range = False
 
@@ -94,29 +104,42 @@ class FileViewer:
 
 
     def __init__(self, viewer_name: str, file_list: FileList):
-        self.file_list      : FileList      = file_list
-        self.__view_list    : FileList      = file_list
-        self.commands       : CommandList   = []
-        self.name           : str           = viewer_name
+        self.file_list  : FileList      = file_list
+        self.__view_list: FileList      = file_list
+        self.commands   : CommandList   = []
+        self.name       : str           = viewer_name
 
-        self.__running      : bool          = True
-        self.__set_value    : bool          = True
-        self.__help_line    : str           = ""
+        self.__running  : bool          = True
+        self.__set_value: bool          = True
+        self.__help_line: str           = ""
 
-        self.add_command({"quit", "q", "exit"}, self.quit_view)
+        self.add_command({"quit", "q", "exit"}, self.quit_view,
+            """Quits this viewer and returns either to the last Viewer or the shell""")
+        self.add_command({"help", "h"}, self.show_help,
+            """Display this help screen, write 'help <command>' to display specific help for <command>""")
 
 
-    def add_command(self, command_list: set[str], callback: CommandCallback):
+    def add_command(self, command_list: set[str], callback: CommandCallback, help_text: str = ""):
         """
         Adds a command defined by `command_list` to available commands of this
         Viewer. When the user types a command from `command_list`, `callback` will
         be executed.
+
+        :param command_list:    Set of strings which will call `callback`
+        :param callback:        Callback to call when any string in
+                                `command_list` is given to this Viewer. Should
+                                have form (str) -> None
+        :param help_text:       Help text for this command
         """
-        self.commands.append((command_list, callback))
+
+        self.commands.append(ViewerCommand(command_list, callback, help_text))
 
 
     def set_help_line(self, line: str):
-        """Defines a short text line to be displayed above the command prompt"""
+        """
+        Defines a short text line to be displayed above the command prompt
+        """
+
         self.__help_line = line
 
 
@@ -129,6 +152,7 @@ class FileViewer:
                                 Expected to take FileEntry and an int-id as parameters
                                 and to return a string.
         """
+
         while self.__running:
 
             # Display List of Files
@@ -145,6 +169,7 @@ class FileViewer:
                 f"{fg('q', AC.BLUE)}uit -> quit viewer; " +
                 f"{fg('/', AC.BLUE)} -> filter; " +
                 f"{fg('!', AC.BLUE)} -> switch selection mode", AC.GREY))
+
             if self.__help_line:
                 print(bg(self.__help_line, AC.GREY))
 
@@ -166,21 +191,38 @@ class FileViewer:
                     self.__set_value = not self.__set_value
 
                 case _:
-                    # Empty command, ignore
-                    if not (cmd_list := cmd.split()):
-                        continue
+                    cmd_list = cmd.split()
 
                     # Look in command list for a fit
-                    found_command = False
                     for command in self.commands:
-                        if found_command := (cmd_list[0] in command[0]):
-                            command[1](cmd)
+                        if cmd_list[0] in command.commands:
+                            command.callback(cmd)
                             break
 
                     # Otherwise, process input as selection line
-                    if not found_command:
+                    else:
                         self.__process_line(cmd)
 
 
     def quit_view(self, _: str):
         self.__running = False
+
+
+    def show_help(self, cmd: str):
+        cmd_list = cmd.split()
+        if len(cmd_list) == 1:
+            # TODO: help for general viewer
+            return
+
+        for command in self.commands:
+            if cmd_list[0] in command.commands:
+                print(command.help_text)
+                break
+        else:
+            print(err(f"Unknown command '{cmd_list[0]}'"))
+
+
+
+
+
+

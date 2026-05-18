@@ -1,4 +1,5 @@
 import json
+import tomllib
 from pathlib import Path
 import hashlib
 from operator import attrgetter
@@ -44,6 +45,10 @@ class Dotter:
         self.__db_file.parent.mkdir(exist_ok=True, parents=True)
         with self.__db_file.open("w+") as fl:
             json.dump(data, fl)
+
+
+    def __help_for(self, key: str) -> str:
+        return f"Usage: {self.__texts[key]['usage']}\n{self.__texts[key]['help']}"
 
 
     # TODO: have self.__file_list as hashmap[md5 -> path] instead of list?
@@ -116,14 +121,15 @@ class Dotter:
         self.__db_dir   : Path      = db_file.parent / "dots/"
         self.__ask      : bool      = ask_actions
 
+        with (Path(__file__) / "help.toml").open("b") as fl:
+            self.__texts: dict[str, dict[str, str]] = tomllib.load(fl)
+
         self.__read_cwd()
         self.__db_dir.mkdir(exist_ok=True, parents=True)
 
 
     def add_selection(self, _: str):
-        if self.__ask and 'Y' != input(
-"""Add selected files? This will move those files from their location into your
-DB_DIR and create symlinks on the old location (Y/n) """):
+        if self.__ask and 'Y' != input(self.__texts["add"]["ask"]):
             return
 
         for dir_entry in filter(lambda e: e.selected, self.__dir_list):
@@ -158,10 +164,7 @@ DB_DIR and create symlinks on the old location (Y/n) """):
 
 
     def cleanup_list(self, _: str):
-        if self.__ask and 'Y' != input(bold(fg("***CAUTION***\n", AC.RED)) +
-"""This will remove all files from your JSON database with no existing source.
-Also, all files from your DB_DIR with no entry in your JSON database will be
-moved to DB_DIR/remove/. Continue? (Y/n) """):
+        if self.__ask and 'Y' != input(self.__texts["cleanup"]["ask"]):
             return
 
         # Remove entries from __file_list without corresponding source files
@@ -193,12 +196,7 @@ moved to DB_DIR/remove/. Continue? (Y/n) """):
 
 
     def delete_selection(self, cmd: str):
-        if self.__ask and 'Y' != input(
-"""Delete selected files?
-This will remove all selected files from your JSON-database and
-move them from your DB_DIR back to their original location. Use command 'd trash'
-if you wish to move the files from your DB_DIR to DB_DIR/remove/ instead of
-their original location (Y/n) """):
+        if self.__ask and 'Y' != input(self.__texts["delete"]["ask"]):
             return
 
         rm_set = False
@@ -222,19 +220,13 @@ their original location (Y/n) """):
 
             if dest.exists():
                 if not dest.is_symlink() or dest.resolve() != source:
-                    print(err(f"{dest} appears be to a different file, skipping file"))
+                    print(warn(f"{dest} appears be to a different file, skipping file"))
                     entry.selected = False
                     continue
                 dest.unlink()
 
             dest.parent.mkdir(parents=True, exist_ok=True)
             source.copy(dest)
-            # with dest.open('wb+') as fl:
-            #     buf = source.read_bytes()
-            #     if fl.write(buf) != len(buf):
-            #         print(err(f"Could not write all to {dest}, leaving file in database"))
-            #         entry.selected = False
-            #         continue
             source.unlink()
 
         # Update JSON-database
@@ -279,21 +271,29 @@ This will change the home-name of all files to {new_name}. (Y/n) """):
                     old_source.copy(self.__db_dir / new_entry.name)
                     extend_list.append(new_entry)
 
-                self.__file_list.extend(extend_list)
+                    self.__file_list.extend(extend_list)
+
+            case other:
+                print(err(f"Unknown edit command: {other}"))
 
 
     def main_view(self):
         def __dir_print(entry: FileEntry, i: int) -> str:
             return (f"{ bg('󰄬', AC.GREEN, False) if self.__is_registered(entry) else ' ' } "
                     f"{ fg('', AC.BLUE, False) if entry.path.is_dir() else '' } "
-                    f"[{ '*' if entry.selected else ' ' }] "
+                    f"[{ '' if entry.selected else ' ' }] "
                     f"{i:3d} {entry.path.name}\x1b[0m")
 
         dir_viewer = FileViewer("Filesystem", self.__dir_list)
 
-        dir_viewer.add_command({"cd"}, self.__change_dir)
-        dir_viewer.add_command({"add", "a"}, self.add_selection)
-        dir_viewer.add_command({"list", "l"}, self.list_view)
+        dir_viewer.add_command({"cd"}, self.__change_dir,
+                               self.__help_for("cd"))
+
+        dir_viewer.add_command({"add", "a"}, self.add_selection,
+                               self.__help_for("add"))
+
+        dir_viewer.add_command({"list", "l"}, self.list_view,
+                               self.__help_for("list"))
 
         dir_viewer.set_help_line(
             f"{fg('cd', AC.BLUE)} <id|..> -> change dir; " +
@@ -306,10 +306,21 @@ This will change the home-name of all files to {new_name}. (Y/n) """):
     def list_view(self, _: str):
         file_viewer = FileViewer("Dotter", self.__file_list)
 
-        file_viewer.add_command({"delete", "d", "remove", "r"}, self.delete_selection)
-        file_viewer.add_command({"edit", "e"}, self.edit_selection)
-        file_viewer.add_command({"create", "c", "setup", "s"}, self.setup_selection)
-        file_viewer.add_command({"cleanup"}, self.cleanup_list)
+        file_viewer.add_command({"delete", "d", "remove", "r"},
+                                self.delete_selection,
+                                self.__help_for("delete"))
+
+        file_viewer.add_command({"edit", "e"},
+                                self.edit_selection,
+                                self.__help_for("edit"))
+
+        file_viewer.add_command({"create", "c", "setup", "s"},
+                                self.setup_selection,
+                                self.__help_for("setup"))
+
+        file_viewer.add_command({"cleanup"},
+                                self.cleanup_list,
+                                self.__help_for("cleanup"))
 
         file_viewer.set_help_line(
             f"{fg('d', AC.BLUE)}elete -> delete selection; " +
@@ -321,11 +332,7 @@ This will change the home-name of all files to {new_name}. (Y/n) """):
 
 
     def setup_selection(self, _: str):
-        if self.__ask and 'Y' != input(
-            """Start Setup?
-This will create new symlinks on your system at *exaclty* the paths of the
-selected files. If you'd like to change e.g. the home directory, use 'edit'
-command. Proceed with setup? (Y/n) """):
+        if self.__ask and 'Y' != input(self.__texts["setup"]["ask"]):
             return
 
         for entry in filter(lambda e: e.selected, self.__file_list):
