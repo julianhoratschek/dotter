@@ -29,7 +29,8 @@ external dependencies.
 
 ## Dependencies :package:
 
-- python >= 13.14 (probably also earlier versions)
+- python >= 13.14
+- Nerd-Fonts (for icons)
 
 
 ## Usage :wrench:
@@ -46,7 +47,7 @@ python main.py
 ```
 
 
-### All Views :letter:
+### All Views :cyclone:
 
 All managers expose these commands:
 

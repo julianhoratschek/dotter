@@ -23,6 +23,7 @@ type CommandCallback    = Callable[[str], None]
 type CommandList        = list[tuple[set[str], CommandCallback]]
 
 
+# TODO: helpscreens in file_viewer
 class FileViewer:
     """
     Displays a list of files and enables the user to interact with it by
@@ -44,7 +45,7 @@ class FileViewer:
 
         return (f"{fg('', AC.BLUE,False) if entry.path.is_dir() else ''} "    # Display directories with icon and blue color
                 f"[{'*' if entry.selected else ' '}] "                                          # Display selection by a ticked/unticked box
-                f"{i:3d} {entry.path.name}\x1b[0m")                                             # Display ID for selection
+                f"{i:3d} {entry.path}\x1b[0m")                                                  # Display ID for selection
 
 
     def __process_line(self, cmd_line: str):

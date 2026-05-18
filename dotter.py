@@ -2,7 +2,7 @@ import json
 from pathlib import Path
 import hashlib
 from operator import attrgetter
-import shutil
+import re
 
 from file_viewer import FileViewer, FileEntry, FileList
 
@@ -10,8 +10,11 @@ from util import *
 
 # Define Constants
 
-DB_DIR  : Path    = Path("~/.cache/dotter/dots/").expanduser().absolute()
+# TODO: argument for different db location
 DB_FILE : Path   = Path("~/.cache/dotter/files.json").expanduser().absolute()
+DB_DIR  : Path    = (DB_FILE.parent / "dots/").expanduser().absolute() 
+
+HOME_PATH_PATTERN = re.compile(r"^(?:/home/|/Users/|[\w_]+:\\Users\\|/usr/home/)([^/\\]+)")
 
 
 class Dotter:
@@ -25,10 +28,10 @@ class Dotter:
     """
 
     def __load_db(self) -> FileList:
-        if not DB_FILE.exists():
+        if not self.__db_file.exists():
             return []
 
-        with DB_FILE.open() as fl:
+        with self.__db_file.open() as fl:
             data = json.load(fl)
 
         return [FileEntry(Path(file["path"]), file["name"])
@@ -38,8 +41,8 @@ class Dotter:
     def __save_json(self):
         data = { "files": [entry.to_dict() for entry in self.__file_list] }
 
-        DB_FILE.parent.mkdir(exist_ok=True, parents=True)
-        with DB_FILE.open("w+") as fl:
+        self.__db_file.parent.mkdir(exist_ok=True, parents=True)
+        with self.__db_file.open("w+") as fl:
             json.dump(data, fl)
 
 
@@ -64,6 +67,7 @@ class Dotter:
 
     def __read_cwd(self):
         """Load content of cwd into __dir_list without changing instances"""
+
         self.__dir_list.clear()
         self.__dir_list.extend([
             FileEntry(file) for file in list(self.__cwd.iterdir())])
@@ -91,7 +95,7 @@ class Dotter:
 
         else:
             idx = int(cmd_list[1])
-            if not (0 < idx < len(self.__dir_list)):
+            if not (0 <= idx < len(self.__dir_list)):
                 print(err("Directory ID is out of bounds"))
                 return
             new_cwd = self.__dir_list[idx]
@@ -104,24 +108,25 @@ class Dotter:
         self.__read_cwd()
 
 
-    def __init__(self):
+    def __init__(self, db_file: Path = DB_FILE, ask_actions: bool = True):
         self.__file_list: FileList  = self.__load_db()
         self.__cwd      : Path      = Path.cwd()
         self.__dir_list : FileList  = []
+        self.__db_file  : Path      = db_file
+        self.__db_dir   : Path      = db_file.parent / "dots/"
+        self.__ask      : bool      = ask_actions
 
         self.__read_cwd()
-        DB_DIR.mkdir(exist_ok=True, parents=True)
+        self.__db_dir.mkdir(exist_ok=True, parents=True)
 
 
     def add_selection(self, _: str):
-        if 'Y' != input(
-            "Add selection? This will move config-files from their location (Y/n)"):
+        if self.__ask and 'Y' != input(
+"""Add selected files? This will move those files from their location into your
+DB_DIR and create symlinks on the old location (Y/n) """):
             return
 
-        for dir_entry in self.__dir_list:
-            if not dir_entry.selected:
-                continue
-
+        for dir_entry in filter(lambda e: e.selected, self.__dir_list):
             dir_entry.selected = False
 
             if dir_entry.path.is_dir():
@@ -132,7 +137,7 @@ class Dotter:
             already_registered = self.__is_registered(dir_entry)
 
             source = dir_entry.path
-            dest = DB_DIR / dir_entry.name
+            dest = self.__db_dir / dir_entry.name
 
             if already_registered:
                 print(warn(f"File {dir_entry.path} already registered, try to update"))
@@ -143,12 +148,7 @@ class Dotter:
                         print(warn(f"File {dir_entry.path} is a symlink to the already registered file, skipping"))
                         continue
 
-            with dest.open('wb+') as fl:
-                buf = source.read_bytes()
-                if fl.write(buf) != len(buf):
-                    print(err(f"Could not write all of {source}, leaving file"))
-                    continue
-            source.unlink()
+            source.move(dest)
             source.symlink_to(dest)
 
             self.__file_list.append(dir_entry)
@@ -158,66 +158,86 @@ class Dotter:
 
 
     def cleanup_list(self, _: str):
-        if 'Y' != input(bold(fg("***CAUTION***\n", AC.RED)) +
-                "This will remove all files from your JSON database with no existing source, as well as all files from your DB_DIR with no entry in your JSON database. Continue? (Y/n)"):
+        if self.__ask and 'Y' != input(bold(fg("***CAUTION***\n", AC.RED)) +
+"""This will remove all files from your JSON database with no existing source.
+Also, all files from your DB_DIR with no entry in your JSON database will be
+moved to DB_DIR/remove/. Continue? (Y/n) """):
             return
 
         # Remove entries from __file_list without corresponding source files
         buf_list = self.__file_list.copy()
         self.__file_list.clear()
-        self.__file_list.extend(e for e in buf_list if (DB_DIR / e.name).exists())
+        self.__file_list.extend(e for e in buf_list if (self.__db_dir / e.name).exists())
 
         # Move files without entries in JSON-database to DB_DIR/remove/
-        backup_folder = DB_DIR / "remove/"
+        backup_folder = self.__db_dir / "remove/"
         backup_folder.mkdir(exist_ok=True, parents=True)
         moved_files = 0
 
-        for file_path in DB_DIR.iterdir():
-            if file_path.is_dir() or \
-                any(file_path.name == e.name for e in self.__file_list):
+        md5_list = {e.name for e in self.__file_list}
+
+        for file_path in self.__db_dir.iterdir():
+            if file_path.is_dir() or file_path.name in md5_list:
                 continue
 
-            shutil.move(file_path, backup_folder)
-            print(f"* Moved {file_path.name} to 'remove/'")
+            try:
+                file_path.move(backup_folder / file_path.name)
+            except OSError as e:
+                print(err(f"Could not move file: {e}"))
+                continue
+
             moved_files += 1
 
         print(warn(f"Moved {moved_files} to {backup_folder}"))
         self.__save_json()
 
 
-    def delete_selection(self, _: str):
-        if 'Y' != input(
-            "Delete selected files? This will move config-files back to their original location (Y/n)"):
+    def delete_selection(self, cmd: str):
+        if self.__ask and 'Y' != input(
+"""Delete selected files?
+This will remove all selected files from your JSON-database and
+move them from your DB_DIR back to their original location. Use command 'd trash'
+if you wish to move the files from your DB_DIR to DB_DIR/remove/ instead of
+their original location (Y/n) """):
             return
 
-        for entry in self.__file_list:
-            if not entry.selected:
-                continue
+        rm_set = False
+        cmd_list = cmd.split()
+        if len(cmd_list) > 1:
+            if cmd_list[1] != "trash":
+                print(err(f"Unknown command {cmd_list[1]}, aborting."))
+                print(warn("Use 'd trash' if you want to move files to DB_DIR/remove instead of their original location."))
+                return
+            rm_set = True
 
-            source = DB_DIR / entry.name
-            dest = entry.path
+        rm_dir = self.__db_dir / "remove/"
 
-            print(f"* Restoring {dest}...")
+        for entry in filter(lambda e: e.selected, self.__file_list):
+            source = self.__db_dir / entry.name
+            dest = (rm_dir / entry.path.name) if rm_set else entry.path
 
             if not source.exists():
-                print(err(f"Could not find source file for {dest} (at {source}), removing file from database, symlink will remain"))
+                print(err(f"Could not find source file for {dest} (at {source}), symlink will remain, removing entry from database."))
                 continue
 
             if dest.exists():
                 if not dest.is_symlink() or dest.resolve() != source:
-                    print(err(f"{dest} appears to be a different file, removing file from database"))
+                    print(err(f"{dest} appears be to a different file, skipping file"))
+                    entry.selected = False
                     continue
                 dest.unlink()
 
             dest.parent.mkdir(parents=True, exist_ok=True)
-            with dest.open('wb+') as fl:
-                buf = source.read_bytes()
-                if fl.write(buf) != len(buf):
-                    print(err(f"Could not write all to {dest}, leaving file in database"))
-                    entry.selected = False
-                    continue
+            source.copy(dest)
+            # with dest.open('wb+') as fl:
+            #     buf = source.read_bytes()
+            #     if fl.write(buf) != len(buf):
+            #         print(err(f"Could not write all to {dest}, leaving file in database"))
+            #         entry.selected = False
+            #         continue
             source.unlink()
 
+        # Update JSON-database
         buf_list = self.__file_list.copy()
         self.__file_list.clear()
         self.__file_list.extend(e for e in buf_list if not e.selected)
@@ -226,8 +246,40 @@ class Dotter:
 
 
     def edit_selection(self, cmd: str):
-        # TODO: Implement
-        print(err("Edit selection not implemented yet"))
+        cmd_list = cmd.split()
+
+        if len(cmd_list) < 2:
+            print(err("Expected a command for 'edit' (choice from: 'user')"))
+            return
+
+        match cmd_list[1]:
+            case "user" | "usr" | "u" | "uname":
+                new_name = cmd_list[2] if len(cmd_list) > 2 else Path.home().name
+                extend_list: FileList = []
+
+                if self.__ask and 'Y' != input(f"""Edit selection?
+This will change the home-name of all files to {new_name}. (Y/n) """):
+                    return
+
+                for entry in filter(lambda e: e.selected, self.__file_list):
+                    # Only process home-paths with different user names
+                    if (m := HOME_PATH_PATTERN.match(str(entry.path))) is None \
+                        or (old_name := m[1]) == new_name:
+                        continue
+
+                    new_path = Path(str(entry.path).replace(old_name, new_name, 1))
+                    new_entry = FileEntry(new_path)
+
+                    # Sets 'name' property for new_entry
+                    if self.__is_registered(new_entry):
+                        print(err(f"File {new_path} is already registered, skipping"))
+                        continue
+
+                    old_source = self.__db_dir / entry.name
+                    old_source.copy(self.__db_dir / new_entry.name)
+                    extend_list.append(new_entry)
+
+                self.__file_list.extend(extend_list)
 
 
     def main_view(self):
@@ -269,19 +321,16 @@ class Dotter:
 
 
     def setup_selection(self, _: str):
-        # TODO: user-specific paths
-        if 'Y' != input(
-            "Start Setup? This will create new files on your system (Y/n)"):
+        if self.__ask and 'Y' != input(
+            """Start Setup?
+This will create new symlinks on your system at *exaclty* the paths of the
+selected files. If you'd like to change e.g. the home directory, use 'edit'
+command. Proceed with setup? (Y/n) """):
             return
 
-        for entry in self.__file_list:
-            if not entry.selected:
-                continue
-
-            source = DB_DIR / entry.name
+        for entry in filter(lambda e: e.selected, self.__file_list):
+            source = self.__db_dir / entry.name
             dest = entry.path
-
-            print(f"* Setup {dest}...")
 
             if not source.exists():
                 print(err(f"Could not find source file for {dest} (at {source})"))
