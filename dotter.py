@@ -94,10 +94,16 @@ class Dotter:
             return
 
         if not cmd_list[1].isnumeric():
-            if cmd_list[1] != "..":
-                print(err("Expected directory ID to by numeric"))
+            if cmd_list[1] == "..":
+                new_cwd = FileEntry(self.__cwd.parent)
+
+            for entry in self.__dir_list:
+                if cmd_list[1] == entry.path.name:
+                    new_cwd = entry
+                    break
+            else:
+                print(err("Expected either an ID or a valid name for 'cd'"))
                 return
-            new_cwd = FileEntry(self.__cwd.parent)
 
         else:
             idx = int(cmd_list[1])
