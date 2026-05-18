@@ -7,14 +7,16 @@ from util import *
 # TODO: Timestamps?
 class FileEntry:
     def __init__(self, path: Path, name: str = "", selected: bool = False):
-        self.path       : Path  = path.expanduser().absolute()
-        self.name       : str   = name
-        self.selected   : bool  = selected
+        self.path    : Path  = path.expanduser().absolute()
+        self.name    : str   = name
+        self.selected: bool  = selected
 
     def to_dict(self) -> dict[str, str]:
         return { "path": str(self.path.expanduser().absolute()), "name": self.name }
 
+
 type CommandCallback    = Callable[[str], None]
+
 
 class ViewerCommand:
     def __init__(self, cmds: set[str], callback: CommandCallback, help_text: str):
@@ -22,7 +24,8 @@ class ViewerCommand:
         self.callback : CommandCallback = callback
         self.help_text: str             = help_text
 
-type CommandList = list[ViewerCommand]
+
+type CommandList        = list[ViewerCommand]
 type PrintCallback      = Callable[[FileEntry, int], str]
 type FileList           = list[FileEntry]
 
@@ -116,6 +119,7 @@ class FileViewer:
 
         self.add_command({"quit", "q", "exit"}, self.quit_view,
             """Quits this viewer and returns either to the last Viewer or the shell""")
+
         self.add_command({"help", "h"}, self.show_help,
             """Display this help screen, write 'help <command>' to display specific help for <command>""")
 

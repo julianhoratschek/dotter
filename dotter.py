@@ -97,13 +97,14 @@ class Dotter:
             if cmd_list[1] == "..":
                 new_cwd = FileEntry(self.__cwd.parent)
 
-            for entry in self.__dir_list:
-                if cmd_list[1] == entry.path.name:
-                    new_cwd = entry
-                    break
             else:
-                print(err("Expected either an ID or a valid name for 'cd'"))
-                return
+                for entry in self.__dir_list:
+                    if cmd_list[1] == entry.path.name:
+                        new_cwd = entry
+                        break
+                else:
+                    print(err("Expected either an ID or a valid name for 'cd'"))
+                    return
 
         else:
             idx = int(cmd_list[1])
