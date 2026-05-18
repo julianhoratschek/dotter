@@ -9,7 +9,7 @@ moved files.
 ask = """
 Add selected files?
 This will move those files from their location into your
-DB_DIR and create symlinks on the old location (Y/n) """):
+DB_DIR and create symlinks on the old location (Y/n) """
 
 
 [cd]
@@ -35,7 +35,7 @@ ask = """
 ***CAUTION***
 This will remove all files from your JSON database with no existing source.
 Also, all files from your DB_DIR with no entry in your JSON database will be
-moved to DB_DIR/remove/. Continue? (Y/n) """):
+moved to DB_DIR/remove/. Continue? (Y/n) """
 
 
 [delete]
@@ -50,7 +50,7 @@ Delete selected files?
 This will remove all selected files from your JSON-database and
 move them from your DB_DIR back to their original location. Use command 'd trash'
 if you wish to move the files from your DB_DIR to DB_DIR/remove/ instead of
-their original location (Y/n) """):
+their original location (Y/n) """
 
 
 [edit]
@@ -83,6 +83,5 @@ ask = """
 Start Setup?
 This will create new symlinks on your system at *exaclty* the paths of the
 selected files. If you'd like to change e.g. the home directory, use 'edit'
-command. Proceed with setup? (Y/n) """):
-
+command. Proceed with setup? (Y/n) """
 

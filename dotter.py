@@ -11,9 +11,6 @@ from util import *
 
 # Define Constants
 
-# TODO: argument for different db location
-DB_FILE : Path   = Path("~/.cache/dotter/files.json").expanduser().absolute()
-DB_DIR  : Path    = (DB_FILE.parent / "dots/").expanduser().absolute() 
 
 HOME_PATH_PATTERN = re.compile(r"^(?:/home/|/Users/|[\w_]+:\\Users\\|/usr/home/)([^/\\]+)")
 
@@ -26,6 +23,10 @@ class Dotter:
     :ivar __file_list:  Internal list of all registered files in JSON-database
     :ivar __cwd      :  Current working directory for file browser
     :ivar __dir_list :  Current list of files in cwd
+    :ivar __db_file  :  Path to the JSON-file containing the database
+    :ivar __db_dir   :  Path to the dots/-directory next to __db_file
+    :ivar __ask      :  True, if the user should be asked before actions
+    :ivar __texts    :  Contains help- and prompt texts read from help.toml
     """
 
     def __load_db(self) -> FileList:
@@ -113,15 +114,18 @@ class Dotter:
         self.__read_cwd()
 
 
-    def __init__(self, db_file: Path = DB_FILE, ask_actions: bool = True):
-        self.__file_list: FileList  = self.__load_db()
-        self.__cwd      : Path      = Path.cwd()
-        self.__dir_list : FileList  = []
+    def __init__(self, db_file: Path, ask_actions: bool = True):
         self.__db_file  : Path      = db_file
         self.__db_dir   : Path      = db_file.parent / "dots/"
+
+        self.__file_list: FileList  = self.__load_db()
+
+        self.__cwd      : Path      = Path.cwd()
+        self.__dir_list : FileList  = []
+
         self.__ask      : bool      = ask_actions
 
-        with (Path(__file__) / "help.toml").open("b") as fl:
+        with (Path(__file__).parent / "help.toml").open("rb") as fl:
             self.__texts: dict[str, dict[str, str]] = tomllib.load(fl)
 
         self.__read_cwd()

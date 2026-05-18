@@ -49,6 +49,7 @@ class FileViewer:
 
         :param entry:   Current file entry to display
         :param i    :   Index of the current file display (0-based)
+
         :resurns    :   String to display per line
         """
 
@@ -88,7 +89,7 @@ class FileViewer:
                 continue
 
             end = int(cmd)
-            if 0 > end >= len(self.__view_list):
+            if 0 > end or end >= len(self.__view_list):
                 print(err(f"Index {end} not an option in the selection list"))
                 return
 
