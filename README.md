@@ -29,8 +29,8 @@ external dependencies.
 
 ## Dependencies :package:
 
-- python >= 13.14
-- Nerd-Fonts (for icons)
+- python >= 13.14 (probably also earlier versions)
+- (optional) NerdFonts (for Icons)
 
 
 ## Usage :wrench:
