@@ -1,6 +1,6 @@
 # Dotter :chicken:
 
-Linux/Unix Dot-file manager for configuration files in pure python without
+Cross-Platform Dot-File Manager for configuration files in pure python without
 external dependencies.
 
 
@@ -10,6 +10,8 @@ external dependencies.
 
 :paperclip: Automatic management of symlinks on your system to have all programs always
   find their respective config-files
+
+:blue_heart: Non-Destructive. None of the original files are deleted or removed
 
 :recycle: Use a version-management system of your choice to manage all of your
   config-files in one place
@@ -29,8 +31,8 @@ external dependencies.
 
 ## Dependencies :package:
 
-- python >= 13.14 (probably also earlier versions)
-- (optional) NerdFonts (for Icons)
+- python >= 13.14
+- (optional) NerdFonts for Icons
 
 
 ## Usage :wrench:
@@ -46,6 +48,13 @@ Execution:
 python main.py
 ```
 
+### Command Line Options 🚀
+
+|Command|Alias(es)|Description|Parameters|Default|
+|-------|---------|-----------|----------|-------|
+|-d     |--json-db|Location of a user defined JSON-File. Must be in a directory with a /dots/ folder|<file>.json|~/.cache/dotter/db.json|
+|-y     |--all-yes|Don't ask before executing actions||False|
+
 
 ### All Views :cyclone:
 
@@ -54,7 +63,7 @@ All managers expose these commands:
 
 | Command          | Alias(es)  | Description                                       | Parameters                            |
 | ---------------- | ---------- | ------------------------------------------------- | ------------------------------------- |
-| quit             | q, exit, e | Closes current View                               |                                       |
+| quit             | q, exit    | Closes current View                               |                                       |
 | /                |            | Filters current View by regex                     | Regex-String or empty to reset filter |
 | !                |            | Switches selection mode to 'select' or 'deselect' |                                       |
 | Selection-Syntax |            | See [Selection-Syntax](#selection-syntax)         |                                       |
@@ -80,13 +89,18 @@ Displays files of the current working directory.
 
 Exposes the following commands:
 
+- **cd \<ID\>|..|\<name\>**
+  
+  Changes working directory to a file indicated by an ID of the current view, a name in the current list or the parent directory ('..')
 
-| Command | Alias(es) | Description                                                                                                                                  | Parameters |
-| ------- | --------- | -------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
-| cd      |           | Changes working directory either to file indicated by ID or to parent directory when '..' is given as parameter                              | ID or '..' |
-| add     | a         | Adds all selected files to the database, moves files from their current location to Dotters collection directory and links them via symlinks |            |
-| list    | l         | Enters [Dotter-View](#dotter-view-egg)                                                                                                       |            |
+- **add|a**
 
+  Adds all selected files to the database and moves the respective files from their location to DB_DIR/dots/. A symlink to the moves
+  file will be created at the old location.
+
+- **list|l**
+
+  Enters [Dotter-View](#dotter-view-egg) to work with already registered files
 
 
 ### Dotter-View :egg:
@@ -95,12 +109,30 @@ Displays all registered config-files.
 
 Exposes the following commands:
 
+- **delete|d|remove|r \[trash\]**
 
-| Command | Alias(es)    | Description                                                                                                                                                                                                                                  | Parameters |
-| ------- | ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
-| delete  | d, remove, r | Removes all selected files from the database, removes files from collection directory and moves them back to their original directories                                                                                                      |            |
-| edit    | e            | Not implemented yet                                                                                                                                                                                                                          |            |
-| setup   | s, create, c | Inserts symlinks to all selected registered files at the locations the files were taken from                                                                                                                                                 |            |
-| cleanup |             | Removes all entries in the JSON-database without files in the collection directory and moves all files from the collection directory without correlated entry in the JSON-database into a "remove"-directory inside the collection directory |            |
+  Removes all selected entries from the database, removes associated symlinks and moves corresponding files back to their original location.
+  This will fail, if the symlink was changed or replaced by another file.
+  
+  If you don't wish to move files back to their original place, use parameter ```trash```, which will move them to DB_DIR/dots/remove/ instead.
+  
+- **edit|e \[user|usr \[\<new_name>\]\]**
 
+  Edits all selected entries according to respective subcommands:
+  
+  - **user|usr \[\<new_name>\]**
+  
+    Changes home directory of the selected entries either to <new_name>, if given, or to the current users home-directory, if omitted
+    
+- **setup|s|create|c**
 
+  Creates Symlinks to all selected entries in your file system. This will not overwrite existing files or symlinks.
+  
+  Be cautious: This will create symlinks at **exactly** the path indicated by the entry. If you want them e.g. in another users home
+  directory (e.g. your own), you should use ```edit``` to apply changes first
+  
+- **cleanup**
+
+  Removes all entries in the JSON-Database without corresponding files in DB_DIR/dots/.
+  
+  This will also move all files from DB_DIR/dots/ without entries in the JSON-Database to DB_DIR/dots/remove/
