@@ -29,27 +29,27 @@ Cleans database and files in DB_DIR/dots.
 This will remove all entries from your database without a corresponding file
 in DB_DIR/dots.
 This will also move all files in DB_DIR/dots without a corresponding entry in
-the database to DB_DIR/remove
+the database to DB_DIR/dots/remove
 """
 ask = """
 ***CAUTION***
 This will remove all files from your JSON database with no existing source.
 Also, all files from your DB_DIR with no entry in your JSON database will be
-moved to DB_DIR/remove/. Continue? (Y/n) """
+moved to DB_DIR/dots/remove/. Continue? (Y/n) """
 
 
 [delete]
 usage = "delete|remove|d|r [trash]"
 help = """
 Removes all currently selected entries from the database.
-Corresponding files in DB_DIR will be moved back to their original location.
-If you'd like to move the files to DB_DIR/remove instead, use parameter 'trash'.
+Corresponding files in DB_DIR/dots will be moved back to their original location.
+If you'd like to move the files to DB_DIR/dots/remove instead, use parameter 'trash'.
 """
 ask = """
 Delete selected files?
 This will remove all selected files from your JSON-database and
-move them from your DB_DIR back to their original location. Use command 'd trash'
-if you wish to move the files from your DB_DIR to DB_DIR/remove/ instead of
+move them from your DB_DIR/dots back to their original location. Use command 'd trash'
+if you wish to move the files from your DB_DIR/dots to DB_DIR/dots/remove/ instead of
 their original location (Y/n) """
 
 

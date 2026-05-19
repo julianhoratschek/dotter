@@ -4,6 +4,7 @@ from pathlib import Path
 import hashlib
 from operator import attrgetter
 import re
+from typing import Callable
 
 from file_viewer import FileViewer, FileEntry, FileList
 from util import *
@@ -108,12 +109,17 @@ class Dotter:
 
     
     def __move_to_remove(self, entry: FileEntry):
+        old_location = self.__db_dir / entry.name
+        if not old_location.exists():
+            print(err(f"File {old_location} does not exist, cannot move it to DB_DIR/dots/remove"))
+            return
+
         new_location = self.__db_dir / f"remove" / entry.path.parent.name / entry.path.name
         while new_location.exists():
             new_location = new_location.with_stem(new_location.stem + "_copy")
 
         new_location.parent.mkdir(parents=True, exist_ok=True)
-        entry.path.move(new_location)
+        old_location.move(new_location)
 
 
     def __read_cwd(self):
@@ -165,9 +171,9 @@ class Dotter:
             dest = self.__db_dir / dir_entry.name
 
             if already_registered:
-                print(warn(f"File {dir_entry.path} already registered, try to update"))
+                print(warn(f"File {source} already registered, try to move old file to DB_DIR/dots/remove"))
 
-                if dir_entry.path.is_symlink():
+                if source.is_symlink():
                     source = source.resolve().absolute()
                     if source == dest:
                         print(warn(f"File {dir_entry.path} is a symlink to the already registered file, skipping"))
@@ -178,7 +184,8 @@ class Dotter:
             source.move(dest)
             source.symlink_to(dest)
 
-            self.__file_list.append(dir_entry)
+            if not already_registered:
+                self.__file_list.append(dir_entry)
 
         self.__file_list.sort(key=attrgetter("path"))
         self.__save_json()
@@ -199,17 +206,13 @@ class Dotter:
         moved_files = 0
 
         md5_list = {e.name for e in self.__file_list}
+        not_registered: Callable[[Path], bool] = \
+            lambda x: not x.is_dir() and x.name not in md5_list
 
-        for file_path in self.__db_dir.iterdir():
-            if file_path.is_dir() or file_path.name in md5_list:
-                continue
-
-            try:
-                file_path.move(backup_folder / file_path.name)
-            except OSError as e:
-                print(err(f"Could not move file: {e}"))
-                continue
-
+        for file_path in filter(not_registered, self.__db_dir.iterdir()):
+            # if file_path.is_dir() or file_path.name in md5_list:
+            #     continue
+            self.__move_to_remove(FileEntry(file_path, file_path.name))
             moved_files += 1
 
         print(warn(f"Moved {moved_files} to {backup_folder}"))
@@ -220,35 +223,30 @@ class Dotter:
         if self.__ask and 'Y' != input(self.__texts["delete"]["ask"]):
             return
 
-        rm_set = False
-        cmd_list = cmd.split()
-        if len(cmd_list) > 1:
-            if cmd_list[1] != "trash":
-                print(err(f"Unknown command {cmd_list[1]}, aborting."))
-                print(warn("Use 'd trash' if you want to move files to DB_DIR/remove instead of their original location."))
-                return
-            rm_set = True
-
-        rm_dir = self.__db_dir / "remove/"
-
-        for entry in filter(lambda e: e.selected, self.__file_list):
+        def __restore_file(entry: FileEntry):
             source = self.__db_dir / entry.name
-            dest = (rm_dir / entry.path.name) if rm_set else entry.path
+            dest = entry.path
 
             if not source.exists():
-                print(err(f"Could not find source file for {dest} (at {source}), symlink will remain, removing entry from database."))
-                continue
+                print(err(f"Could not find source file for {dest} (at {source}), removing entry from database."))
+                return
 
-            if dest.exists():
-                if not dest.is_symlink() or dest.resolve() != source:
-                    print(warn(f"{dest} appears be to a different file, skipping file"))
-                    entry.selected = False
-                    continue
-                dest.unlink()
+            if dest.exists() and (not dest.is_symlink() or dest.resolve() != source):
+                print(warn(f"{dest} appears be to a different file, skipping file"))
+                entry.selected = False
+                return
 
             dest.parent.mkdir(parents=True, exist_ok=True)
-            source.copy(dest)
-            source.unlink()
+            source.move(dest)
+
+        cmd_list = cmd.split()
+        rm_callback = self.__move_to_remove if "trash" in cmd_list else __restore_file
+
+        for entry in filter(lambda e: e.selected, self.__file_list):
+            try:
+                rm_callback(entry)
+            except OSError as e:
+                print(err(f"For file {entry.name}: {e}"))
 
         # Update JSON-database
         buf_list = self.__file_list.copy()
@@ -275,6 +273,8 @@ This will change the home-name of all files to {new_name}. (Y/n) """):
                     return
 
                 for entry in filter(lambda e: e.selected, self.__file_list):
+                    entry.selected = False
+
                     # Only process home-paths with different user names
                     if (m := HOME_PATH_PATTERN.match(str(entry.path))) is None \
                         or (old_name := m[1]) == new_name:

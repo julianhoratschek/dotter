@@ -173,7 +173,8 @@ class FileViewer:
             print(bg(
                 f"{fg('q', AC.BLUE)}uit -> quit viewer; " +
                 f"{fg('/', AC.BLUE)} -> filter; " +
-                f"{fg('!', AC.BLUE)} -> switch selection mode", AC.GREY))
+                f"{fg('!', AC.BLUE)} -> switch selection mod; " +
+                f"{fg('h', AC.BLUE)}elp <cmd> -> display help", AC.GREY))
 
             if self.__help_line:
                 print(bg(self.__help_line, AC.GREY))
