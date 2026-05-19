@@ -6,11 +6,10 @@ from operator import attrgetter
 import re
 
 from file_viewer import FileViewer, FileEntry, FileList
-
 from util import *
 
-# Define Constants
 
+# Define Constants
 
 HOME_PATH_PATTERN = re.compile(r"^(?:/home/|/Users/|[\w_]+:\\Users\\|/usr/home/)([^/\\]+)")
 
@@ -48,49 +47,13 @@ class Dotter:
             json.dump(data, fl)
 
 
-    def __help_for(self, key: str) -> str:
-        return f"Usage: {self.__texts[key]['usage']}\n{self.__texts[key]['help']}"
-
-
-    # TODO: have self.__file_list as hashmap[md5 -> path] instead of list?
-    def __is_registered(self, entry: FileEntry) -> bool:
-        """
-        Returns True, if entry is found in the current `__file_list`. Mutates
-        `entry`, sets `entry.name` to the md5-hash of `entry.path`
-        """
-
-        # Might speeds up directory lookup but messes with add_selection logic
-        # if not entry.path.is_symlink():
-        #     return False
-
-        if not entry.name:
-            m = hashlib.md5()
-            m.update(bytes(entry.path))
-            entry.name = m.hexdigest()
-
-        return any(e.name == entry.name for e in self.__file_list)
-
-
-    def __read_cwd(self):
-        """Load content of cwd into __dir_list without changing instances"""
-
-        self.__dir_list.clear()
-        self.__dir_list.extend([
-            FileEntry(file) for file in list(self.__cwd.iterdir())])
-
-        # Sort by pathname
-        self.__dir_list.sort(key=attrgetter("path"))
-        # Sort by dir/files
-        self.__dir_list.sort(key=lambda x: x.path.is_dir(), reverse=True)
-
-    
     def __change_dir(self, cmd: str):
         """Change `self.__cwd` and update `self.__dir_list`"""
 
         cmd_list = cmd.split()
 
         if len(cmd_list) < 2:
-            print(err("Expected directory ID"))
+            print(err("Expected directory ID or name"))
             return
 
         if not cmd_list[1].isnumeric():
@@ -121,8 +84,53 @@ class Dotter:
         self.__read_cwd()
 
 
+    def __help_for(self, key: str) -> str:
+        return f"Usage: {self.__texts[key]['usage']}\n{self.__texts[key]['help']}"
+
+
+    # TODO: have self.__file_list as hashmap[md5 -> path] instead of list?
+    def __is_registered(self, entry: FileEntry) -> bool:
+        """
+        Returns True, if entry is found in the current `__file_list`. Mutates
+        `entry`, sets `entry.name` to the md5-hash of `entry.path`
+        """
+
+        # Might speeds up directory lookup but messes with add_selection logic
+        # if not entry.path.is_symlink():
+        #     return False
+
+        if not entry.name:
+            m = hashlib.md5()
+            m.update(bytes(entry.path))
+            entry.name = m.hexdigest()
+
+        return any(e.name == entry.name for e in self.__file_list)
+
+    
+    def __move_to_remove(self, entry: FileEntry):
+        new_location = self.__db_dir / f"remove" / entry.path.parent.name / entry.path.name
+        while new_location.exists():
+            new_location = new_location.with_stem(new_location.stem + "_copy")
+
+        new_location.parent.mkdir(parents=True, exist_ok=True)
+        entry.path.move(new_location)
+
+
+    def __read_cwd(self):
+        """Load content of cwd into __dir_list without changing instances"""
+
+        self.__dir_list.clear()
+        self.__dir_list.extend([
+            FileEntry(file) for file in list(self.__cwd.iterdir())])
+
+        # Sort by pathname
+        self.__dir_list.sort(key=attrgetter("path"))
+        # Sort by dir/files
+        self.__dir_list.sort(key=lambda x: x.path.is_dir(), reverse=True)
+
+
     def __init__(self, db_file: Path, ask_actions: bool = True):
-        self.__db_file  : Path      = db_file
+        self.__db_file  : Path      = db_file.expanduser().absolute()
         self.__db_dir   : Path      = db_file.parent / "dots/"
 
         self.__file_list: FileList  = self.__load_db()
@@ -147,7 +155,7 @@ class Dotter:
             dir_entry.selected = False
 
             if dir_entry.path.is_dir():
-                print(warn(f"Directories ({dir_entry.path}) will not be processed, please select files individually"))
+                print(warn(f"Directory ({dir_entry.path}) will not be processed, please select files individually"))
                 continue
 
             # This sets name for dir_entry
@@ -164,6 +172,8 @@ class Dotter:
                     if source == dest:
                         print(warn(f"File {dir_entry.path} is a symlink to the already registered file, skipping"))
                         continue
+
+                self.__move_to_remove(dir_entry)
 
             source.move(dest)
             source.symlink_to(dest)
