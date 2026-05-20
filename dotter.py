@@ -357,6 +357,8 @@ This will change the home-name of all files to {new_name}. (Y/n) """):
             return
 
         for entry in filter(lambda e: e.selected, self.__file_list):
+            entry.selected = False
+
             source = self.__db_dir / entry.name
             dest = entry.path
 
