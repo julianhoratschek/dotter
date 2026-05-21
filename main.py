@@ -15,7 +15,7 @@ def main(scr: curses.window):
     parser.add_argument("-d", "--json-db", nargs=1, default=DB_FILE, type=Path, dest="db_file")
     args = parser.parse_args()
 
-    Dotter(scr, db_file=args.db_file, ask_actions=args.ask).main_view()
+    Dotter(scr, db_file=args.db_file).main_view()
 
 
 if __name__ == "__main__":

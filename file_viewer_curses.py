@@ -12,9 +12,9 @@ type FileList           = list[FileEntry]
 
 class FileEntry:
     def __init__(self, path: Path, name: str = "", selected: bool = False):
-        self.path    : Path  = path.expanduser().absolute()
-        self.name    : str   = name
-        self.selected: bool  = selected
+        self.path       : Path  = path.expanduser().absolute()
+        self.name       : str   = name
+        self.selected   : bool  = selected
 
     def to_dict(self) -> dict[str, str]:
         return { "path": str(self.path.expanduser().absolute()), "name": self.name }
@@ -22,8 +22,8 @@ class FileEntry:
 
 class ViewerCommand:
     def __init__(self, callback: CommandCallback, help_text: str):
-        self.callback : CommandCallback = callback
-        self.help_text: str             = help_text
+        self.callback   : CommandCallback = callback
+        self.help_text  : str             = help_text
 
 
 class Colors(IntEnum):
@@ -45,13 +45,13 @@ class ViewerTheme:
         curses.start_color()
         curses.use_default_colors()
 
-        curses.init_pair(Colors.Directory, 105, -1)
-        curses.init_pair(Colors.Selected, -1, 34)
-        curses.init_pair(Colors.Warning, 124, -1)
-        curses.init_pair(Colors.Note, 220, -1)
-        curses.init_pair(Colors.Help, -1, 240)
-        curses.init_pair(Colors.HelpShort, 105, 240)
-        curses.init_pair(Colors.PreSelect, -1, 34)
+        curses.init_pair(Colors.Directory,  105,    -1)
+        curses.init_pair(Colors.Selected,   -1,     34)
+        curses.init_pair(Colors.Warning,    124,    -1)
+        curses.init_pair(Colors.Note,       220,    -1)
+        curses.init_pair(Colors.Help,       -1,     240)
+        curses.init_pair(Colors.HelpShort,  105,    240)
+        curses.init_pair(Colors.PreSelect,  -1,     34)
 
         ViewerTheme.Instance = self
 
@@ -92,6 +92,9 @@ class FileViewer:
             pad.attron(curses.color_pair(Colors.Directory))
             icon = ''
         else:
+            if entry.path.is_symlink():
+                icon = ''
+
             sel_str = "[ ]"
             if entry.selected:
                 pad.attron(curses.color_pair(Colors.Selected))
@@ -108,37 +111,37 @@ class FileViewer:
 
 
     def __draw_window(self):
-        self.window.clear()
-        self.window.hline(0, 2, '-', 60)
-        self.window.addstr(1, 2, self.name, curses.A_BOLD)
-        self.window.hline(6 + self.__list_pad_height, 2, '-', 60)
+        self.__window.clear()
+        self.__window.hline(0, 2, '-', 60)
+        self.__window.addstr(1, 2, self.name, curses.A_BOLD)
+        self.__window.hline(6 + self.__list_pad_height, 2, '-', 60)
 
-        if self.__warning != "":
-            self.window.addstr(7 + self.__list_pad_height, 2, "!! ", curses.color_pair(Colors.Warning))
-            self.window.addstr(self.__warning)
+        if self.__warning:
+            self.__window.addstr(7 + self.__list_pad_height, 2, "!! ", curses.color_pair(Colors.Warning))
+            self.__window.addstr(self.__warning)
             self.__warning = ""
 
-        if self.__note != "":
-            self.window.addstr(8 + self.__list_pad_height, 2, "󱞁 ", curses.color_pair(Colors.Note))
-            self.window.addstr(self.__note)
+        if self.__note:
+            self.__window.addstr(8 + self.__list_pad_height, 2, "󱞁 ", curses.color_pair(Colors.Note))
+            self.__window.addstr(self.__note)
             self.__note = ""
 
-        self.window.addstr(9 + self.__list_pad_height, 2, "***Commands***", curses.A_BOLD)
-        self.window.attron(curses.color_pair(Colors.Help))
-        self.window.addstr(10 + self.__list_pad_height, 2,
+        self.__window.addstr(9 + self.__list_pad_height, 2, "***Commands***", curses.A_BOLD)
+        self.__window.attron(curses.color_pair(Colors.Help))
+        self.__window.addstr(10 + self.__list_pad_height, 2,
                            "q -> quit viewer; j/k -> move up/down; "+
                            "v -> select; " +
                            "/ -> filter; " +
                            ": -> enter command")
 
-        self.window.addstr(11 + self.__list_pad_height, 2,
+        self.__window.addstr(11 + self.__list_pad_height, 2,
                            self.__help_line.rstrip())
-        self.window.attroff(curses.color_pair(Colors.Help))
-        self.window.refresh()
+        self.__window.attroff(curses.color_pair(Colors.Help))
+        self.__window.refresh()
 
 
     def __init__(self, viewer_name: str, file_list: FileList, main_window: curses.window):
-        self.window             : curses.window     = main_window.derwin(2, 0)
+        self.__window           : curses.window     = main_window.derwin(2, 0)
 
         self.__list_pad_height  : int               = 25
         self.__list_pad_width   : int               = main_window.getmaxyx()[1]
@@ -189,9 +192,11 @@ class FileViewer:
         if self.cur_line < self.list_pad_top:
             self.list_pad_top -= 1
 
+
     def goto_top(self):
         self.cur_line = 0
         self.list_pad_top = 0
+
 
     def goto_bottom(self):
         self.cur_line = len(self.__view_list) - 1
@@ -249,8 +254,8 @@ class FileViewer:
         curses.echo()
         curses.curs_set(1)
 
-        height, width = self.window.getmaxyx()
-        win = self.window.derwin(3, width - 2, height - 3, 2)
+        height, width = self.__window.getmaxyx()
+        win = self.__window.derwin(3, width - 2, height - 3, 2)
         win.box()
 
         win.addstr(1, 2, msg)
@@ -278,7 +283,7 @@ class FileViewer:
                 self.list_pad_top, 0, 5, 0,
                 5 + self.__list_pad_height, self.__list_pad_width)
 
-            cmd = self.window.getch()
+            cmd = self.__window.getch()
 
             # ENTER, SPACE
             if cmd in (10, 13, curses.KEY_ENTER) or cmd == 32:
@@ -311,7 +316,7 @@ class FileViewer:
                     if len(cmd_list) < 2:
                         break
                     pos += 1
-                    cmd = self.window.getch()
+                    cmd = self.__window.getch()
 
                 if cmd_list:
                     self.commands[cmd_list[0]].callback(self)

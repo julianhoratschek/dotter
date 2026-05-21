@@ -28,15 +28,12 @@ class Dotter:
 
 
     def __save_json(self):
-        data = { "files": [entry.to_dict() for entry in self.__file_list] }
+        data = { 
+            "files": [entry.to_dict() for entry in self.__file_list] }
 
         self.__db_file.parent.mkdir(exist_ok=True, parents=True)
         with self.__db_file.open("w+") as fl:
             json.dump(data, fl)
-
-
-    def __help_for(self, key: str) -> str:
-        return f"Usage: {self.__texts[key]['usage']}\n{self.__texts[key]['help']}"
 
 
     # TODO: have self.__file_list as hashmap[md5 -> path] instead of list?
@@ -61,7 +58,6 @@ class Dotter:
     def __move_to_remove(self, entry: FileEntry):
         old_location = self.__db_dir / entry.name
         if not old_location.exists():
-            # print(err(f"File {old_location} does not exist, cannot move it to DB_DIR/dots/remove"))
             return
 
         new_location = self.__db_dir / f"remove" / entry.path.parent.name / entry.path.name
@@ -72,7 +68,7 @@ class Dotter:
         old_location.move(new_location)
 
 
-    def __read_cwd(self, viewer: FileViewer | None = None):
+    def __read_cwd(self):
         """Load content of cwd into __dir_list without changing instances"""
 
         self.__dir_list.clear()
@@ -84,11 +80,8 @@ class Dotter:
         # Sort by dir/files
         self.__dir_list.sort(key=lambda x: x.path.is_dir(), reverse=True)
 
-        if viewer:
-            viewer.refresh()
 
-
-    def __init__(self, window: curses.window, db_file: Path, ask_actions: bool = True):
+    def __init__(self, window: curses.window, db_file: Path):
         # TODO actually load theme
         theme = ViewerTheme.load()
 
@@ -102,10 +95,8 @@ class Dotter:
         self.__cwd      : Path          = Path.cwd()
         self.__dir_list : FileList      = []
 
-        self.__ask      : bool          = ask_actions
-
-        with (Path(__file__).parent / "help.toml").open("rb") as fl:
-            self.__texts: dict[str, dict[str, str]] = tomllib.load(fl)
+        # with (Path(__file__).parent / "help.toml").open("rb") as fl:
+        #     self.__texts: dict[str, dict[str, str]] = tomllib.load(fl)
 
         self.__read_cwd()
         self.__db_dir.mkdir(exist_ok=True, parents=True)
@@ -114,15 +105,18 @@ class Dotter:
     def enter_dir(self, viewer: FileViewer):
         if not viewer.current_entry.path.is_dir():
             return
+
         self.__cwd = viewer.current_entry.path
-        self.__read_cwd(viewer)
+        self.__read_cwd()
+
         viewer.set_cur_line(0)
+        viewer.refresh()
 
 
     def dir_up(self, viewer: FileViewer):
         old_cwd = self.__cwd
         self.__cwd = self.__cwd.parent
-        self.__read_cwd(viewer)
+        self.__read_cwd()
 
         for i, p in enumerate(self.__dir_list):
             if old_cwd == p.path:
@@ -131,6 +125,7 @@ class Dotter:
             i = 0
 
         viewer.set_cur_line(i)
+        viewer.refresh()
 
 
     def add_selection(self, viewer: FileViewer):
@@ -167,6 +162,7 @@ class Dotter:
         self.__save_json()
 
         viewer.note("Added files")
+        viewer.refresh()
 
 
     def cleanup_list(self, viewer: FileViewer):
@@ -188,8 +184,10 @@ class Dotter:
             self.__move_to_remove(FileEntry(file_path, file_path.name))
             moved_files += 1
 
-        viewer.note(f"Moved {moved_files} to {backup_folder}")
         self.__save_json()
+
+        viewer.note(f"Moved {moved_files} to {backup_folder}")
+        viewer.refresh()
 
 
     def restore_selection(self, viewer: FileViewer):
@@ -214,11 +212,10 @@ class Dotter:
         self.__file_list.clear()
         self.__file_list.extend(e for e in buf_list if not e.selected)
 
-        viewer.refresh()
-
         self.__save_json()
 
         viewer.note("Restored files")
+        viewer.refresh()
 
 
     def delete_selection(self, viewer: FileViewer):
@@ -229,10 +226,9 @@ class Dotter:
         self.__file_list.clear()
         self.__file_list.extend(e for e in buf_list if not e.selected)
 
-        viewer.refresh()
-
         self.__save_json()
 
+        viewer.refresh()
         viewer.note("Moved files to DB_DIR/dots/remove/")
 
 
@@ -263,6 +259,7 @@ class Dotter:
             extend_list.append(new_entry)
 
         self.__file_list.extend(extend_list)
+        viewer.refresh()
 
 
     def main_view(self):
@@ -271,11 +268,9 @@ class Dotter:
         dir_viewer.add_command('l', self.enter_dir)
         dir_viewer.add_command('h', self.dir_up)
 
-        dir_viewer.add_command('a', self.add_selection,
-                               self.__help_for("add"))
+        dir_viewer.add_command('a', self.add_selection)
 
-        dir_viewer.add_command('t', self.list_view,
-                               self.__help_for("list"))
+        dir_viewer.add_command('t', self.list_view)
 
         dir_viewer.set_help_line(
             "l -> enter dir; " +
@@ -291,22 +286,10 @@ class Dotter:
         file_viewer = FileViewer("Dotter", self.__file_list, window)
 
         file_viewer.add_command('r', self.restore_selection)
-
-        file_viewer.add_command('d',
-                                self.delete_selection,
-                                self.__help_for("delete"))
-
-        file_viewer.add_command('e',
-                                self.edit_selection,
-                                self.__help_for("edit"))
-
-        file_viewer.add_command('s',
-                                self.setup_selection,
-                                self.__help_for("setup"))
-
-        file_viewer.add_command('cl',
-                                self.cleanup_list,
-                                self.__help_for("cleanup"))
+        file_viewer.add_command('d', self.delete_selection)
+        file_viewer.add_command('e', self.edit_selection)
+        file_viewer.add_command('s', self.setup_selection)
+        file_viewer.add_command('cl', self.cleanup_list)
 
         file_viewer.set_help_line(
             "r -> restore selection; " +
