@@ -40,6 +40,8 @@ class ViewerTheme:
     Instance: Self | None = None
 
     def __init__(self):
+        curses.curs_set(0)
+
         curses.start_color()
         curses.use_default_colors()
 
@@ -121,6 +123,8 @@ class FileViewer:
 
         self.__running          : bool              = True
         self.__help_line        : str               = ""
+        self.__note             : str               = ""
+        self.__warning          : str               = ""
 
         self.add_command('j',FileViewer.line_down)
         self.add_command('k', FileViewer.line_up)
@@ -215,15 +219,25 @@ class FileViewer:
             self.window.addstr(1, 2, self.name, curses.A_BOLD)
             self.window.hline(6 + self.__list_pad_height, 2, '-', 60)
 
-            self.window.addstr(8 + self.__list_pad_height, 2, "***Commands***", curses.A_BOLD)
+            if self.__warning:
+                self.window.addstr(8, 2, "!! ", curses.color_pair(Colors.Warning))
+                self.window.addstr(self.__warning)
+                self.__warning = ""
+
+            if self.__note:
+                self.window.addstr(9, 2, "󱞁 ", curses.color_pair(Colors.Note))
+                self.window.addstr(self.__note)
+                self.__note = ""
+
+            self.window.addstr(10 + self.__list_pad_height, 2, "***Commands***", curses.A_BOLD)
             self.window.attron(curses.color_pair(Colors.Help))
-            self.window.addstr(10 + self.__list_pad_height, 2,
+            self.window.addstr(11 + self.__list_pad_height, 2,
                                "q -> quit viewer; j/k -> move up/down; "+
                                "v -> select; " +
                                "/ -> filter; " +
                                ": -> enter command")
 
-            self.window.addstr(11 + self.__list_pad_height, 2,
+            self.window.addstr(12 + self.__list_pad_height, 2,
                                self.__help_line.rstrip())
             self.window.attroff(curses.color_pair(Colors.Help))
             self.window.refresh()
@@ -274,9 +288,23 @@ class FileViewer:
     def quit_view(self):
         self.__running = False
 
+    def note(self, msg: str):
+        self.__note = msg
+
+    def warn(self, msg: str):
+        self.__warning = msg
+
+    def set_cur_line(self, idx: int):
+        if idx >= len(self.__file_list):
+            idx = 0
+
+        self.cur_line = idx
+        if idx < self.list_pad_top or idx > self.list_pad_top + self.__list_pad_height:
+            self.list_pad_top = idx
+
+
 
 def main(scr: curses.window):
-    curses.curs_set(0)
     theme = ViewerTheme.load()
     file_list = [FileEntry(p) for p in Path('~/.config/').expanduser().iterdir()]
     FileViewer("Test Viewer", file_list, scr).show()

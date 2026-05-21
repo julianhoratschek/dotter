@@ -5,9 +5,10 @@ import hashlib
 from operator import attrgetter
 import re
 from typing import Callable
+import curses
 
-from file_viewer import FileViewer, FileEntry, FileList
-from util import *
+from file_viewer_curses import FileViewer, ViewerTheme, FileEntry, FileList
+# from util import *
 
 
 # Define Constants
@@ -16,19 +17,6 @@ HOME_PATH_PATTERN = re.compile(r"^(?:/home/|/Users/|[\w_]+:\\Users\\|/usr/home/)
 
 
 class Dotter:
-    """
-    Main class for this program, manages different viewers, JSON-database
-    and move- and copy functionality
-
-    :ivar __file_list:  Internal list of all registered files in JSON-database
-    :ivar __cwd      :  Current working directory for file browser
-    :ivar __dir_list :  Current list of files in cwd
-    :ivar __db_file  :  Path to the JSON-file containing the database
-    :ivar __db_dir   :  Path to the dots/-directory next to __db_file
-    :ivar __ask      :  True, if the user should be asked before actions
-    :ivar __texts    :  Contains help- and prompt texts read from help.toml
-    """
-
     def __load_db(self) -> FileList:
         if not self.__db_file.exists():
             return []
@@ -46,43 +34,6 @@ class Dotter:
         self.__db_file.parent.mkdir(exist_ok=True, parents=True)
         with self.__db_file.open("w+") as fl:
             json.dump(data, fl)
-
-
-    def __change_dir(self, cmd: str):
-        """Change `self.__cwd` and update `self.__dir_list`"""
-
-        cmd_list = cmd.split()
-
-        if len(cmd_list) < 2:
-            print(err("Expected directory ID or name"))
-            return
-
-        if not cmd_list[1].isnumeric():
-            if cmd_list[1] == "..":
-                new_cwd = FileEntry(self.__cwd.parent)
-
-            else:
-                for entry in self.__dir_list:
-                    if cmd_list[1] == entry.path.name:
-                        new_cwd = entry
-                        break
-                else:
-                    print(err("Expected either an ID or a valid name for 'cd'"))
-                    return
-
-        else:
-            idx = int(cmd_list[1])
-            if not (0 <= idx < len(self.__dir_list)):
-                print(err("Directory ID is out of bounds"))
-                return
-            new_cwd = self.__dir_list[idx]
-
-        if not new_cwd.path.is_dir():
-            print(err("cd expects directory as target"))
-            return
-
-        self.__cwd = new_cwd.path
-        self.__read_cwd()
 
 
     def __help_for(self, key: str) -> str:
@@ -111,7 +62,7 @@ class Dotter:
     def __move_to_remove(self, entry: FileEntry):
         old_location = self.__db_dir / entry.name
         if not old_location.exists():
-            print(err(f"File {old_location} does not exist, cannot move it to DB_DIR/dots/remove"))
+            # print(err(f"File {old_location} does not exist, cannot move it to DB_DIR/dots/remove"))
             return
 
         new_location = self.__db_dir / f"remove" / entry.path.parent.name / entry.path.name
@@ -135,16 +86,21 @@ class Dotter:
         self.__dir_list.sort(key=lambda x: x.path.is_dir(), reverse=True)
 
 
-    def __init__(self, db_file: Path, ask_actions: bool = True):
-        self.__db_file  : Path      = db_file.expanduser().absolute()
-        self.__db_dir   : Path      = db_file.parent / "dots/"
+    def __init__(self, window: curses.window, db_file: Path, ask_actions: bool = True):
+        # TODO actually load theme
+        theme = ViewerTheme.load()
 
-        self.__file_list: FileList  = self.__load_db()
+        self.__window   : curses.window = window
 
-        self.__cwd      : Path      = Path.cwd()
-        self.__dir_list : FileList  = []
+        self.__db_file  : Path          = db_file.expanduser().absolute()
+        self.__db_dir   : Path          = db_file.parent / "dots/"
 
-        self.__ask      : bool      = ask_actions
+        self.__file_list: FileList      = self.__load_db()
+
+        self.__cwd      : Path          = Path.cwd()
+        self.__dir_list : FileList      = []
+
+        self.__ask      : bool          = ask_actions
 
         with (Path(__file__).parent / "help.toml").open("rb") as fl:
             self.__texts: dict[str, dict[str, str]] = tomllib.load(fl)
@@ -153,15 +109,38 @@ class Dotter:
         self.__db_dir.mkdir(exist_ok=True, parents=True)
 
 
-    def add_selection(self, _: str):
-        if self.__ask and 'Y' != input(self.__texts["add"]["ask"]):
+    def enter_dir(self, viewer: FileViewer):
+        if not viewer.current_entry.path.is_dir():
             return
+        self.__cwd = viewer.current_entry.path
+        self.__read_cwd()
+        viewer.set_cur_line(0)
+
+
+    def dir_up(self, viewer: FileViewer):
+        old_cwd = self.__cwd
+        self.__cwd = self.__cwd.parent
+        self.__read_cwd()
+
+        for i, p in enumerate(self.__dir_list):
+            if old_cwd == p.path:
+                break
+        else:
+            i = 0
+
+        viewer.set_cur_line(i)
+
+
+    def add_selection(self, viewer: FileViewer):
+        # TODO: Asks
+        # if self.__ask and 'Y' != input(self.__texts["add"]["ask"]):
+        #     return
 
         for dir_entry in filter(lambda e: e.selected, self.__dir_list):
             dir_entry.selected = False
 
             if dir_entry.path.is_dir():
-                print(warn(f"Directory ({dir_entry.path}) will not be processed, please select files individually"))
+                viewer.note(f"Directories will not be processed, please select files individually")
                 continue
 
             # This sets name for dir_entry
@@ -171,12 +150,11 @@ class Dotter:
             dest = self.__db_dir / dir_entry.name
 
             if already_registered:
-                print(warn(f"File {source} already registered, try to move old file to DB_DIR/dots/remove"))
+                viewer.warn("Some files may have been moved to DB_DIR/dots/remove, as they were already registered")
 
                 if source.is_symlink():
                     source = source.resolve().absolute()
                     if source == dest:
-                        print(warn(f"File {dir_entry.path} is a symlink to the already registered file, skipping"))
                         continue
 
                 self.__move_to_remove(dir_entry)
@@ -191,9 +169,10 @@ class Dotter:
         self.__save_json()
 
 
-    def cleanup_list(self, _: str):
-        if self.__ask and 'Y' != input(self.__texts["cleanup"]["ask"]):
-            return
+    def cleanup_list(self, viewer: FileViewer):
+        # TODO: Asking
+        # if self.__ask and 'Y' != input(self.__texts["cleanup"]["ask"]):
+        #     return
 
         # Remove entries from __file_list without corresponding source files
         buf_list = self.__file_list.copy()
@@ -210,45 +189,32 @@ class Dotter:
             lambda x: not x.is_dir() and x.name not in md5_list
 
         for file_path in filter(not_registered, self.__db_dir.iterdir()):
-            # if file_path.is_dir() or file_path.name in md5_list:
-            #     continue
             self.__move_to_remove(FileEntry(file_path, file_path.name))
             moved_files += 1
 
-        print(warn(f"Moved {moved_files} to {backup_folder}"))
+        viewer.note(f"Moved {moved_files} to {backup_folder}")
         self.__save_json()
 
 
-    def delete_selection(self, cmd: str):
-        if self.__ask and 'Y' != input(self.__texts["delete"]["ask"]):
-            return
-
-        def __restore_file(entry: FileEntry):
+    def restore_selection(self, viewer: FileViewer):
+        # TODO: asks
+        # TODO: log
+        for entry in filter(lambda e: e.selected, self.__file_list):
             source = self.__db_dir / entry.name
             dest = entry.path
 
             if not source.exists():
-                print(err(f"Could not find source file for {dest} (at {source}), removing entry from database."))
-                return
+                viewer.warn("Some source files could not be found, removed entries from database")
+                continue
 
             if dest.exists() and (not dest.is_symlink() or dest.resolve() != source):
-                print(warn(f"{dest} appears be to a different file, skipping file"))
+                viewer.note("Some files were not restores, as the destination appeared to link to/be different files")
                 entry.selected = False
-                return
+                continue
 
             dest.parent.mkdir(parents=True, exist_ok=True)
             source.move(dest)
 
-        cmd_list = cmd.split()
-        rm_callback = self.__move_to_remove if "trash" in cmd_list else __restore_file
-
-        for entry in filter(lambda e: e.selected, self.__file_list):
-            try:
-                rm_callback(entry)
-            except OSError as e:
-                print(err(f"For file {entry.name}: {e}"))
-
-        # Update JSON-database
         buf_list = self.__file_list.copy()
         self.__file_list.clear()
         self.__file_list.extend(e for e in buf_list if not e.selected)
@@ -256,105 +222,127 @@ class Dotter:
         self.__save_json()
 
 
-    def edit_selection(self, cmd: str):
-        cmd_list = cmd.split()
+    def delete_selection(self, viewer: FileViewer):
+        # TODO: rmove vs restore
+        # TODO: Asks
+        # if self.__ask and 'Y' != input(self.__texts["delete"]["ask"]):
+        #   return
 
-        if len(cmd_list) < 2:
-            print(err("Expected a command for 'edit' (choice from: 'user')"))
-            return
+        for entry in filter(lambda e: e.selected, self.__file_list):
+            self.__move_to_remove(entry)
 
-        match cmd_list[1]:
-            case "user" | "usr" | "u" | "uname":
-                new_name = cmd_list[2] if len(cmd_list) > 2 else Path.home().name
-                extend_list: FileList = []
+        buf_list = self.__file_list.copy()
+        self.__file_list.clear()
+        self.__file_list.extend(e for e in buf_list if not e.selected)
 
-                if self.__ask and 'Y' != input(f"""Edit selection?
-This will change the home-name of all files to {new_name}. (Y/n) """):
-                    return
+        self.__save_json()
 
-                for entry in filter(lambda e: e.selected, self.__file_list):
-                    entry.selected = False
 
-                    # Only process home-paths with different user names
-                    if (m := HOME_PATH_PATTERN.match(str(entry.path))) is None \
-                        or (old_name := m[1]) == new_name:
-                        continue
-
-                    new_path = Path(str(entry.path).replace(old_name, new_name, 1))
-                    new_entry = FileEntry(new_path)
-
-                    # Sets 'name' property for new_entry
-                    if self.__is_registered(new_entry):
-                        print(err(f"File {new_path} is already registered, skipping"))
-                        continue
-
-                    old_source = self.__db_dir / entry.name
-                    old_source.copy(self.__db_dir / new_entry.name)
-                    extend_list.append(new_entry)
-
-                    self.__file_list.extend(extend_list)
-
-            case other:
-                print(err(f"Unknown edit command: {other}"))
+#     def edit_selection(self, viewer: FileViewer):
+#         # TODO: prompts or as command
+#         cmd_list = cmd.split()
+#
+#         if len(cmd_list) < 2:
+#             print(err("Expected a command for 'edit' (choice from: 'user')"))
+#             return
+#
+#         match cmd_list[1]:
+#             case "user" | "usr" | "u" | "uname":
+#                 new_name = cmd_list[2] if len(cmd_list) > 2 else Path.home().name
+#                 extend_list: FileList = []
+#
+#                 if self.__ask and 'Y' != input(f"""Edit selection?
+# This will change the home-name of all files to {new_name}. (Y/n) """):
+#                     return
+#
+#                 for entry in filter(lambda e: e.selected, self.__file_list):
+#                     entry.selected = False
+#
+#                     # Only process home-paths with different user names
+#                     if (m := HOME_PATH_PATTERN.match(str(entry.path))) is None \
+#                         or (old_name := m[1]) == new_name:
+#                         continue
+#
+#                     new_path = Path(str(entry.path).replace(old_name, new_name, 1))
+#                     new_entry = FileEntry(new_path)
+#
+#                     # Sets 'name' property for new_entry
+#                     if self.__is_registered(new_entry):
+#                         print(err(f"File {new_path} is already registered, skipping"))
+#                         continue
+#
+#                     old_source = self.__db_dir / entry.name
+#                     old_source.copy(self.__db_dir / new_entry.name)
+#                     extend_list.append(new_entry)
+#
+#                     self.__file_list.extend(extend_list)
+#
+#             case other:
+#                 print(err(f"Unknown edit command: {other}"))
 
 
     def main_view(self):
-        def __dir_print(entry: FileEntry, i: int) -> str:
-            return (f"{ bg('󰄬', AC.GREEN, False) if self.__is_registered(entry) else ' ' } "
-                    f"{ fg('', AC.BLUE, False) if entry.path.is_dir() else '' } "
-                    f"[{ '' if entry.selected else ' ' }] "
-                    f"{i:3d} {entry.path.name}\x1b[0m")
+        # def __dir_print(entry: FileEntry, i: int) -> str:
+        #     return (f"{ bg('󰄬', AC.GREEN, False) if self.__is_registered(entry) else ' ' } "
+        #             f"{ fg('', AC.BLUE, False) if entry.path.is_dir() else '' } "
+        #             f"[{ '' if entry.selected else ' ' }] "
+        #             f"{i:3d} {entry.path.name}\x1b[0m")
 
-        dir_viewer = FileViewer("Filesystem", self.__dir_list)
+        dir_viewer = FileViewer("Filesystem", self.__dir_list, self.__window)
 
-        dir_viewer.add_command({"cd"}, self.__change_dir,
-                               self.__help_for("cd"))
+        dir_viewer.add_command('l', self.enter_dir)
+        dir_viewer.add_command('h', self.dir_up)
 
-        dir_viewer.add_command({"add", "a"}, self.add_selection,
+        dir_viewer.add_command('a', self.add_selection,
                                self.__help_for("add"))
 
-        dir_viewer.add_command({"list", "l"}, self.list_view,
+        dir_viewer.add_command('t', self.list_view,
                                self.__help_for("list"))
 
         dir_viewer.set_help_line(
-            f"{fg('cd', AC.BLUE)} <id|..> -> change dir; " +
-            f"{fg('a', AC.BLUE)}dd -> add selection; " +
-            f"{fg('l', AC.BLUE)}ist -> show registered files;")
+            "l -> enter dir; " +
+            "h -> dir up; " +
+            "a -> add selection; " +
+            "t -> show registered files; ")
 
-        dir_viewer.show(__dir_print)
+        dir_viewer.show()
 
 
-    def list_view(self, _: str):
-        file_viewer = FileViewer("Dotter", self.__file_list)
+    def list_view(self, viewer: FileViewer):
+        window = self.__window.subwin(0, 0)
+        file_viewer = FileViewer("Dotter", self.__file_list, window)
 
-        file_viewer.add_command({"delete", "d", "remove", "r"},
+        file_viewer.add_command('r', self.restore_selection)
+
+        file_viewer.add_command('d',
                                 self.delete_selection,
                                 self.__help_for("delete"))
 
-        file_viewer.add_command({"edit", "e"},
-                                self.edit_selection,
-                                self.__help_for("edit"))
+        # file_viewer.add_command('e',
+        #                         self.edit_selection,
+        #                         self.__help_for("edit"))
 
-        file_viewer.add_command({"create", "c", "setup", "s"},
+        file_viewer.add_command('s',
                                 self.setup_selection,
                                 self.__help_for("setup"))
 
-        file_viewer.add_command({"cleanup"},
+        file_viewer.add_command('cl',
                                 self.cleanup_list,
                                 self.__help_for("cleanup"))
 
         file_viewer.set_help_line(
-            f"{fg('d', AC.BLUE)}elete -> delete selection; " +
-            f"{fg('e', AC.BLUE)}dit -> edit selection; " +
-            f"{fg('s', AC.BLUE)}etup -> setup selected files; " +
-            f"{fg('cleanup', AC.BLUE)} -> cleanup database; ")
+            "r -> restore selection; " +
+            "d -> delete selection; " +
+            "s -> Setup selection; " +
+            "cl -> clean database; ")
 
         file_viewer.show()
 
 
-    def setup_selection(self, _: str):
-        if self.__ask and 'Y' != input(self.__texts["setup"]["ask"]):
-            return
+    def setup_selection(self, viewer: FileViewer):
+        # TODO: asks
+        # if self.__ask and 'Y' != input(self.__texts["setup"]["ask"]):
+        #     return
 
         for entry in filter(lambda e: e.selected, self.__file_list):
             entry.selected = False
@@ -363,12 +351,11 @@ This will change the home-name of all files to {new_name}. (Y/n) """):
             dest = entry.path
 
             if not source.exists():
-                print(err(f"Could not find source file for {dest} (at {source})"))
-                print(warn("\tYou might want to clean your database using 'cleanup' command in list-view"))
+                viewer.warn("Some source files were not found")
                 continue
 
             if dest.exists():
-                print(warn(f"{dest} already exists, skipping"))
+                viewer.note("Some files already existed and were skipped")
                 continue
 
             dest.parent.mkdir(exist_ok=True, parents=True)
