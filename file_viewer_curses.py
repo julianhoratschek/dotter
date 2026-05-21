@@ -2,7 +2,7 @@ from pathlib import Path
 from typing import Callable, Self
 import curses
 from enum import IntEnum
-# import re
+import re
 
 
 type CommandCallback    = Callable[[FileViewer], None]
@@ -97,11 +97,44 @@ class FileViewer:
                 pad.attron(curses.color_pair(Colors.Selected))
                 sel_str = "[]"
 
-        arr = '' if viewer.cur_line == i else ' '
+        arrl = arrr = ' '
+        if viewer.cur_line == i:
+            arrl = '󰁔'
+            arrr = '󰁍'
 
-        pad.addstr(f"{arr} {icon} {sel_str} {i:3d} {entry.path}")
+        pad.addstr(f"{arrl} {icon} {sel_str} {i:3d} {entry.path} {arrr}")
         pad.attroff(curses.color_pair(Colors.Directory) |
                     curses.color_pair(Colors.Selected))
+
+
+    def __draw_window(self):
+        self.window.clear()
+        self.window.hline(0, 2, '-', 60)
+        self.window.addstr(1, 2, self.name, curses.A_BOLD)
+        self.window.hline(6 + self.__list_pad_height, 2, '-', 60)
+
+        if self.__warning != "":
+            self.window.addstr(7 + self.__list_pad_height, 2, "!! ", curses.color_pair(Colors.Warning))
+            self.window.addstr(self.__warning)
+            self.__warning = ""
+
+        if self.__note != "":
+            self.window.addstr(8 + self.__list_pad_height, 2, "󱞁 ", curses.color_pair(Colors.Note))
+            self.window.addstr(self.__note)
+            self.__note = ""
+
+        self.window.addstr(9 + self.__list_pad_height, 2, "***Commands***", curses.A_BOLD)
+        self.window.attron(curses.color_pair(Colors.Help))
+        self.window.addstr(10 + self.__list_pad_height, 2,
+                           "q -> quit viewer; j/k -> move up/down; "+
+                           "v -> select; " +
+                           "/ -> filter; " +
+                           ": -> enter command")
+
+        self.window.addstr(11 + self.__list_pad_height, 2,
+                           self.__help_line.rstrip())
+        self.window.attroff(curses.color_pair(Colors.Help))
+        self.window.refresh()
 
 
     def __init__(self, viewer_name: str, file_list: FileList, main_window: curses.window):
@@ -212,43 +245,38 @@ class FileViewer:
         e.selected = not e.selected if flip else True
 
 
+    def prompt(self, msg: str) -> str:
+        curses.echo()
+        curses.curs_set(1)
+
+        height, width = self.window.getmaxyx()
+        win = self.window.derwin(3, width - 2, height - 3, 2)
+        win.box()
+
+        win.addstr(1, 2, msg)
+        win.refresh()
+
+        ret = win.getstr(1, len(msg) + 2).decode("utf-8").strip()
+
+        curses.noecho()
+        curses.curs_set(0)
+        del win
+
+        return ret
+
+
     def show(self, print_callback: PrintCallback = __default_print):
         while self.__running:
-            self.window.clear()
-            self.window.hline(0, 2, '-', 60)
-            self.window.addstr(1, 2, self.name, curses.A_BOLD)
-            self.window.hline(6 + self.__list_pad_height, 2, '-', 60)
-
-            if self.__warning:
-                self.window.addstr(8, 2, "!! ", curses.color_pair(Colors.Warning))
-                self.window.addstr(self.__warning)
-                self.__warning = ""
-
-            if self.__note:
-                self.window.addstr(9, 2, "󱞁 ", curses.color_pair(Colors.Note))
-                self.window.addstr(self.__note)
-                self.__note = ""
-
-            self.window.addstr(10 + self.__list_pad_height, 2, "***Commands***", curses.A_BOLD)
-            self.window.attron(curses.color_pair(Colors.Help))
-            self.window.addstr(11 + self.__list_pad_height, 2,
-                               "q -> quit viewer; j/k -> move up/down; "+
-                               "v -> select; " +
-                               "/ -> filter; " +
-                               ": -> enter command")
-
-            self.window.addstr(12 + self.__list_pad_height, 2,
-                               self.__help_line.rstrip())
-            self.window.attroff(curses.color_pair(Colors.Help))
-            self.window.refresh()
+            self.__draw_window()
 
             self.list_pad.clear()
             # TODO: pad big enough?
             for i, entry in enumerate(self.__view_list):
                 self.list_pad.move(i, 0)
                 print_callback(self, entry, i)
-            self.list_pad.refresh(self.list_pad_top, 0,
-                                    5, 0, 5 + self.__list_pad_height, self.__list_pad_width)
+            self.list_pad.refresh(
+                self.list_pad_top, 0, 5, 0,
+                5 + self.__list_pad_height, self.__list_pad_width)
 
             cmd = self.window.getch()
 
@@ -263,6 +291,10 @@ class FileViewer:
             elif cmd == ord('/'):
                 # TODO: Fuzzy matching
                 self.mode = FileViewerMode.Filter
+                filter_str = self.prompt("Test: ")
+                self.__view_list = [
+                    e for e in self.__file_list
+                    if re.search(filter_str, str(e.path))]
 
             elif cmd == ord(':'):
                 # TODO: command mode
@@ -288,11 +320,14 @@ class FileViewer:
     def quit_view(self):
         self.__running = False
 
+
     def note(self, msg: str):
         self.__note = msg
 
+
     def warn(self, msg: str):
         self.__warning = msg
+
 
     def set_cur_line(self, idx: int):
         if idx >= len(self.__file_list):
@@ -302,16 +337,19 @@ class FileViewer:
         if idx < self.list_pad_top or idx > self.list_pad_top + self.__list_pad_height:
             self.list_pad_top = idx
 
+    def refresh(self):
+        self.__view_list = self.__file_list
 
 
-def main(scr: curses.window):
-    theme = ViewerTheme.load()
-    file_list = [FileEntry(p) for p in Path('~/.config/').expanduser().iterdir()]
-    FileViewer("Test Viewer", file_list, scr).show()
 
-
-if __name__ == "__main__":
-    curses.wrapper(main)
+# def main(scr: curses.window):
+#     theme = ViewerTheme.load()
+#     file_list = [FileEntry(p) for p in Path('~/.config/').expanduser().iterdir()]
+#     FileViewer("Test Viewer", file_list, scr).show()
+#
+#
+# if __name__ == "__main__":
+#     curses.wrapper(main)
 
 
 

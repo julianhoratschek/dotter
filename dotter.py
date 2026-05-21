@@ -8,7 +8,6 @@ from typing import Callable
 import curses
 
 from file_viewer_curses import FileViewer, ViewerTheme, FileEntry, FileList
-# from util import *
 
 
 # Define Constants
@@ -73,7 +72,7 @@ class Dotter:
         old_location.move(new_location)
 
 
-    def __read_cwd(self):
+    def __read_cwd(self, viewer: FileViewer | None = None):
         """Load content of cwd into __dir_list without changing instances"""
 
         self.__dir_list.clear()
@@ -84,6 +83,9 @@ class Dotter:
         self.__dir_list.sort(key=attrgetter("path"))
         # Sort by dir/files
         self.__dir_list.sort(key=lambda x: x.path.is_dir(), reverse=True)
+
+        if viewer:
+            viewer.refresh()
 
 
     def __init__(self, window: curses.window, db_file: Path, ask_actions: bool = True):
@@ -113,14 +115,14 @@ class Dotter:
         if not viewer.current_entry.path.is_dir():
             return
         self.__cwd = viewer.current_entry.path
-        self.__read_cwd()
+        self.__read_cwd(viewer)
         viewer.set_cur_line(0)
 
 
     def dir_up(self, viewer: FileViewer):
         old_cwd = self.__cwd
         self.__cwd = self.__cwd.parent
-        self.__read_cwd()
+        self.__read_cwd(viewer)
 
         for i, p in enumerate(self.__dir_list):
             if old_cwd == p.path:
@@ -132,10 +134,6 @@ class Dotter:
 
 
     def add_selection(self, viewer: FileViewer):
-        # TODO: Asks
-        # if self.__ask and 'Y' != input(self.__texts["add"]["ask"]):
-        #     return
-
         for dir_entry in filter(lambda e: e.selected, self.__dir_list):
             dir_entry.selected = False
 
@@ -168,12 +166,10 @@ class Dotter:
         self.__file_list.sort(key=attrgetter("path"))
         self.__save_json()
 
+        viewer.note("Added files")
+
 
     def cleanup_list(self, viewer: FileViewer):
-        # TODO: Asking
-        # if self.__ask and 'Y' != input(self.__texts["cleanup"]["ask"]):
-        #     return
-
         # Remove entries from __file_list without corresponding source files
         buf_list = self.__file_list.copy()
         self.__file_list.clear()
@@ -197,7 +193,6 @@ class Dotter:
 
 
     def restore_selection(self, viewer: FileViewer):
-        # TODO: asks
         # TODO: log
         for entry in filter(lambda e: e.selected, self.__file_list):
             source = self.__db_dir / entry.name
@@ -208,7 +203,7 @@ class Dotter:
                 continue
 
             if dest.exists() and (not dest.is_symlink() or dest.resolve() != source):
-                viewer.note("Some files were not restores, as the destination appeared to link to/be different files")
+                viewer.note("Some files were not restored, as the destination appeared to link to/be different files")
                 entry.selected = False
                 continue
 
@@ -219,15 +214,14 @@ class Dotter:
         self.__file_list.clear()
         self.__file_list.extend(e for e in buf_list if not e.selected)
 
+        viewer.refresh()
+
         self.__save_json()
+
+        viewer.note("Restored files")
 
 
     def delete_selection(self, viewer: FileViewer):
-        # TODO: rmove vs restore
-        # TODO: Asks
-        # if self.__ask and 'Y' != input(self.__texts["delete"]["ask"]):
-        #   return
-
         for entry in filter(lambda e: e.selected, self.__file_list):
             self.__move_to_remove(entry)
 
@@ -235,59 +229,43 @@ class Dotter:
         self.__file_list.clear()
         self.__file_list.extend(e for e in buf_list if not e.selected)
 
+        viewer.refresh()
+
         self.__save_json()
 
+        viewer.note("Moved files to DB_DIR/dots/remove/")
 
-#     def edit_selection(self, viewer: FileViewer):
-#         # TODO: prompts or as command
-#         cmd_list = cmd.split()
-#
-#         if len(cmd_list) < 2:
-#             print(err("Expected a command for 'edit' (choice from: 'user')"))
-#             return
-#
-#         match cmd_list[1]:
-#             case "user" | "usr" | "u" | "uname":
-#                 new_name = cmd_list[2] if len(cmd_list) > 2 else Path.home().name
-#                 extend_list: FileList = []
-#
-#                 if self.__ask and 'Y' != input(f"""Edit selection?
-# This will change the home-name of all files to {new_name}. (Y/n) """):
-#                     return
-#
-#                 for entry in filter(lambda e: e.selected, self.__file_list):
-#                     entry.selected = False
-#
-#                     # Only process home-paths with different user names
-#                     if (m := HOME_PATH_PATTERN.match(str(entry.path))) is None \
-#                         or (old_name := m[1]) == new_name:
-#                         continue
-#
-#                     new_path = Path(str(entry.path).replace(old_name, new_name, 1))
-#                     new_entry = FileEntry(new_path)
-#
-#                     # Sets 'name' property for new_entry
-#                     if self.__is_registered(new_entry):
-#                         print(err(f"File {new_path} is already registered, skipping"))
-#                         continue
-#
-#                     old_source = self.__db_dir / entry.name
-#                     old_source.copy(self.__db_dir / new_entry.name)
-#                     extend_list.append(new_entry)
-#
-#                     self.__file_list.extend(extend_list)
-#
-#             case other:
-#                 print(err(f"Unknown edit command: {other}"))
+
+    def edit_selection(self, viewer: FileViewer):
+        new_name = viewer.prompt("New User: ")
+        if not new_name:
+            return
+
+        extend_list: FileList = []
+
+        for entry in filter(lambda e: e.selected, self.__file_list):
+            entry.selected = False
+
+            # Only process home-paths with different user names
+            if (m := HOME_PATH_PATTERN.match(str(entry.path))) is None \
+                or (old_name := m[1]) == new_name:
+                continue
+
+            new_path = Path(str(entry.path).replace(old_name, new_name, 1))
+            new_entry = FileEntry(new_path)
+
+            # Sets 'name' property for new_entry
+            if self.__is_registered(new_entry):
+                continue
+
+            old_source = self.__db_dir / entry.name
+            old_source.copy(self.__db_dir / new_entry.name)
+            extend_list.append(new_entry)
+
+        self.__file_list.extend(extend_list)
 
 
     def main_view(self):
-        # def __dir_print(entry: FileEntry, i: int) -> str:
-        #     return (f"{ bg('󰄬', AC.GREEN, False) if self.__is_registered(entry) else ' ' } "
-        #             f"{ fg('', AC.BLUE, False) if entry.path.is_dir() else '' } "
-        #             f"[{ '' if entry.selected else ' ' }] "
-        #             f"{i:3d} {entry.path.name}\x1b[0m")
-
         dir_viewer = FileViewer("Filesystem", self.__dir_list, self.__window)
 
         dir_viewer.add_command('l', self.enter_dir)
@@ -318,9 +296,9 @@ class Dotter:
                                 self.delete_selection,
                                 self.__help_for("delete"))
 
-        # file_viewer.add_command('e',
-        #                         self.edit_selection,
-        #                         self.__help_for("edit"))
+        file_viewer.add_command('e',
+                                self.edit_selection,
+                                self.__help_for("edit"))
 
         file_viewer.add_command('s',
                                 self.setup_selection,
@@ -332,18 +310,16 @@ class Dotter:
 
         file_viewer.set_help_line(
             "r -> restore selection; " +
+            "e -> edit home path; " +
             "d -> delete selection; " +
             "s -> Setup selection; " +
             "cl -> clean database; ")
 
         file_viewer.show()
+        del window
 
 
     def setup_selection(self, viewer: FileViewer):
-        # TODO: asks
-        # if self.__ask and 'Y' != input(self.__texts["setup"]["ask"]):
-        #     return
-
         for entry in filter(lambda e: e.selected, self.__file_list):
             entry.selected = False
 
@@ -360,3 +336,5 @@ class Dotter:
 
             dest.parent.mkdir(exist_ok=True, parents=True)
             dest.symlink_to(source)
+
+        viewer.note("Files setup")
