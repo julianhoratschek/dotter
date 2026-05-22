@@ -11,7 +11,6 @@ DB_DIR  : Path    = (DB_FILE.parent / "dots/").expanduser().absolute()
 
 def main(scr: curses.window):
     parser = argparse.ArgumentParser("dotter")
-    parser.add_argument("-y", "--all-yes", action="store_false", dest="ask")
     parser.add_argument("-d", "--json-db", nargs=1, default=DB_FILE, type=Path, dest="db_file")
     args = parser.parse_args()
 
