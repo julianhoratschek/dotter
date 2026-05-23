@@ -30,9 +30,7 @@ class FileEntry:
 
 
     def to_dict(self) -> dict[str, str]:
-        """
-        Returns the object as JSON-writeable format
-        """
+        """ Returns the object as JSON-writeable format """
         return { "path": str(self.path.expanduser().absolute()), "name": self.name }
 
 
@@ -108,6 +106,7 @@ class ViewerTheme:
                 if name in theme_data and len(theme_data[name]) == 2:
                     vals = list(map(int, theme_data[name]))
             except ValueError:
+                # TODO: handle correctly
                 pass
             curses.init_pair(cl, *vals)
 
@@ -121,12 +120,12 @@ class ViewerTheme:
         Loads defaults for FileViewer Theme or reads color data from `theme_file`
         if provided. Falls back to defaults, if `theme_file` is malformed or
         missing.
-        :ivar theme_file:   Path|str|None   Optional, Path to a toml-file providing
-                                            the theme to display
+        :ivar theme_file:   Path|str    Optional, Path to a toml-file providing
+                                        the theme to display
         """
 
         if ViewerTheme.Instance:
-            return
+            return ViewerTheme.Instance
 
         curses.curs_set(0)
 
@@ -147,7 +146,6 @@ class ViewerTheme:
 
 class FileViewerMode(IntEnum):
     """Vim-like file modes for FileViewer"""
-
     Normal  = 0
     Select  = 1
     Command = 2     # TODO: do we need this?
@@ -249,7 +247,7 @@ class FileViewer:
             self.__window.addstr(self.__note)
             self.__note = ""
 
-        self.__window.addstr(7 + self.__list_pad_height, 2, "Commands", curses.A_BOLD)
+        self.__window.addstr(7 + self.__list_pad_height, 2, "***Commands***", curses.A_BOLD)
         self.__window.attron(curses.color_pair(Colors.Help))
         self.__window.addstr(8 + self.__list_pad_height, 2,
                            "q -> quit viewer; j/k -> move up/down; "+
@@ -268,7 +266,7 @@ class FileViewer:
         h, w = self.__window.getmaxyx()
 
         self.__list_pad_height  : int               = h - 11 
-        self.__list_pad_width   : int               = main_window.getmaxyx()[1]
+        self.__list_pad_width   : int               = w
         self.list_pad           : curses.window     = curses.newpad(1024, self.__list_pad_width)
 
         self.cur_line           : int               = 0
@@ -479,17 +477,23 @@ class FileViewer:
 
             # Look for registered commands
             else:
-                pos = 0
                 cmd_list = list(self.commands.keys())
+                inp = chr(cmd)
                 while True:
-                    cmd_list = [
-                        str(c) for c in cmd_list
-                        if pos < len(c) and chr(cmd) == c[pos]
-                    ]
+                    cmd_list = list(filter(lambda c: c.startswith(inp), cmd_list))
                     if len(cmd_list) < 2:
                         break
-                    pos += 1
                     cmd = self.__window.getch()
+                    inp += chr(cmd)
+                # while True:
+                #     cmd_list = [
+                #         str(c) for c in cmd_list
+                #         if pos < len(c) and chr(cmd) == c[pos]
+                #     ]
+                #     if len(cmd_list) < 2:
+                #         break
+                #     pos += 1
+                #     cmd = self.__window.getch()
 
                 if cmd_list:
                     self.commands[cmd_list[0]].callback(self)

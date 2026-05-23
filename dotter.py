@@ -55,11 +55,13 @@ class Dotter:
 
     
     def __move_to_remove(self, entry: FileEntry):
+        """Moves file from dotter/dots/ directory to dotter/dots/remove"""
+
         old_location = self.__db_dir / entry.name
         if not old_location.exists():
             return
 
-        new_location = self.__db_dir / f"remove" / entry.path.parent.name / entry.path.name
+        new_location = self.__db_dir / "remove" / entry.path.parent.name / entry.path.name
         while new_location.exists():
             new_location = new_location.with_stem(new_location.stem + "_copy")
 
@@ -171,8 +173,6 @@ class Dotter:
         self.__file_list.extend(e for e in buf_list if (self.__db_dir / e.name).exists())
 
         # Move files without entries in JSON-database to DB_DIR/remove/
-        backup_folder = self.__db_dir / "remove/"
-        backup_folder.mkdir(exist_ok=True, parents=True)
         moved_files = 0
 
         md5_list = {e.name for e in self.__file_list}
@@ -185,7 +185,7 @@ class Dotter:
 
         self.__save_json()
 
-        viewer.note(f"Moved {moved_files} to {backup_folder}")
+        viewer.note(f"Moved {moved_files} to DB_DIR/dots/remove/")
         viewer.refresh()
 
 
@@ -290,7 +290,7 @@ class Dotter:
         """ListView of all registered files"""
 
         window = self.__window.subwin(0, 0)
-        file_viewer = FileViewer("Dotter", self.__file_list, window)
+        file_viewer = FileViewer("Registered Files", self.__file_list, window)
 
         file_viewer.add_command('r', self.restore_selection)
         file_viewer.add_command('d', self.delete_selection)
