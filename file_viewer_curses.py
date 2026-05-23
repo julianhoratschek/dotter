@@ -1,6 +1,6 @@
 from pathlib import Path
 import tomllib
-from typing import Callable, Self
+from typing import Callable, Self, override
 import curses
 from enum import IntEnum
 import re
@@ -61,6 +61,33 @@ class Colors(IntEnum):
     HelpShort   = 6
     PreSelect   = 7
 
+    @override
+    def __str__(self) -> str:
+        match self:
+            case Colors.Directory:
+                return "Directory"
+            case Colors.Selected:
+                return "Selected"
+            case Colors.Warning:
+                return "Warning"
+            case Colors.Note:
+                return "Note"
+            case Colors.Help:
+                return "Help"
+            case Colors.HelpShort:
+                return "HelpShort"
+            case Colors.PreSelect:
+                return "PreSelect"
+
+ColorDefaults: dict[Colors, list[int]] = {
+	Colors.Directory: [105, -1],
+	Colors.Selected: [-1,  34],
+	Colors.Warning: [124, -1],
+	Colors.Note: [220, -1],
+	Colors.Help: [-1,  240],
+	Colors.HelpShort: [105, 240],
+	Colors.PreSelect: [-1,  34]
+}
 
 class ViewerTheme:
     """Simple Theme manager. Should not be istanciated directly, only called
@@ -68,40 +95,28 @@ class ViewerTheme:
 
     Instance: Self | None = None
 
-    ColorMapping: dict[str, Colors] = {
-        "Directory" : Colors.Directory,
-        "Selected"  : Colors.Selected,
-        "Warning"   : Colors.Warning,
-        "Note"      : Colors.Note,
-        "Help"      : Colors.Help,
-        "HelpShort" : Colors.HelpShort,
-        "PreSelect" : Colors.PreSelect }
-
     @staticmethod
-    def __read_theme(
-            theme_data: dict[str, list[int]],
-            default: dict[str, list[int]]):
+    def __read_theme(theme_data: dict[str, list[int]]):
         """
         Reads theme from the provided dictionary, falls back to defaults
         if theme is malformed """
 
-        for name, cl in ViewerTheme.ColorMapping.items():
-            vals = default[name]
-            if name in theme_data and len(theme_data[name]) == 2:
-                try:
-                    vals = list(map(int, theme_data[name]))
-                except ValueError as e:
-                    # TODO: handle
-                    pass
-            curses.init_pair(cl, vals[0], vals[1])
+        for cl, vals in ColorDefaults.items():
+            name = str(cl)
 
+            try:
+                if name in theme_data and len(theme_data[name]) == 2:
+                    vals = list(map(int, theme_data[name]))
+            except ValueError:
+                pass
+            curses.init_pair(cl, *vals)
 
     def __init__(self):
         ViewerTheme.Instance = self
 
 
     @classmethod
-    def load(cls, theme_file: Path | str | None):
+    def load(cls, theme_file: Path | str = ""):
         """
         Loads defaults for FileViewer Theme or reads color data from `theme_file`
         if provided. Falls back to defaults, if `theme_file` is malformed or
@@ -118,14 +133,7 @@ class ViewerTheme:
         curses.start_color()
         curses.use_default_colors()
 
-        default_theme_file = Path(__file__).parent / "theme.toml"
-        if not default_theme_file.exists():
-            return
-
-        with default_theme_file.open("rb") as fl:
-            default_theme = tomllib.load(fl)
-        theme_data = default_theme
-
+        theme_data: dict[str, list[int]] = {}
         if theme_file and (theme_file := Path(theme_file)).exists():
             with theme_file.open("rb") as fl:
                 try:
@@ -133,7 +141,7 @@ class ViewerTheme:
                 except tomllib.TOMLDecodeError as e:
                     # TODO: handle
                     pass
-        ViewerTheme.__read_theme(theme_data, default_theme)
+        ViewerTheme.__read_theme(theme_data)
         return cls()
 
 
@@ -228,28 +236,28 @@ class FileViewer:
         self.__window.clear()
         self.__window.hline(0, 2, '-', 60)
         self.__window.addstr(1, 2, self.name, curses.A_BOLD)
-        self.__window.hline(6 + self.__list_pad_height, 2, '-', 60)
+        self.__window.hline(4 + self.__list_pad_height, 2, '-', 60)
 
         # TODO: roper notifications-system
         if self.__warning:
-            self.__window.addstr(7 + self.__list_pad_height, 2, "!! ", curses.color_pair(Colors.Warning))
+            self.__window.addstr(5 + self.__list_pad_height, 2, "!! ", curses.color_pair(Colors.Warning))
             self.__window.addstr(self.__warning)
             self.__warning = ""
 
         if self.__note:
-            self.__window.addstr(8 + self.__list_pad_height, 2, "󱞁 ", curses.color_pair(Colors.Note))
+            self.__window.addstr(6 + self.__list_pad_height, 2, "󱞁 ", curses.color_pair(Colors.Note))
             self.__window.addstr(self.__note)
             self.__note = ""
 
-        self.__window.addstr(9 + self.__list_pad_height, 2, "***Commands***", curses.A_BOLD)
+        self.__window.addstr(7 + self.__list_pad_height, 2, "Commands", curses.A_BOLD)
         self.__window.attron(curses.color_pair(Colors.Help))
-        self.__window.addstr(10 + self.__list_pad_height, 2,
+        self.__window.addstr(8 + self.__list_pad_height, 2,
                            "q -> quit viewer; j/k -> move up/down; "+
                            "v -> select; " +
                            "/ -> filter; " +
                            ": -> enter command")
 
-        self.__window.addstr(11 + self.__list_pad_height, 2,
+        self.__window.addstr(9 + self.__list_pad_height, 2,
                            self.__help_line.rstrip())
         self.__window.attroff(curses.color_pair(Colors.Help))
         self.__window.refresh()
@@ -257,8 +265,9 @@ class FileViewer:
 
     def __init__(self, viewer_name: str, file_list: FileList, main_window: curses.window):
         self.__window           : curses.window     = main_window.derwin(2, 0)
+        h, w = self.__window.getmaxyx()
 
-        self.__list_pad_height  : int               = 25
+        self.__list_pad_height  : int               = h - 11 
         self.__list_pad_width   : int               = main_window.getmaxyx()[1]
         self.list_pad           : curses.window     = curses.newpad(1024, self.__list_pad_width)
 
@@ -432,7 +441,7 @@ class FileViewer:
             self.__draw_window()
 
             # Make sure, list_pad is big enough
-            if (h := self.list_pad.getmaxyx()[0]) >= len(self.__view_list):
+            if (h := self.list_pad.getmaxyx()[0]) <= len(self.__view_list):
                 del self.list_pad
                 self.list_pad = curses.newpad(int(h * 1.5), self.__list_pad_width)
 

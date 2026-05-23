@@ -1,5 +1,4 @@
 import json
-import tomllib
 from pathlib import Path
 import hashlib
 from operator import attrgetter
@@ -81,9 +80,8 @@ class Dotter:
         self.__dir_list.sort(key=lambda x: x.path.is_dir(), reverse=True)
 
 
-    def __init__(self, window: curses.window, db_file: Path):
-        # TODO actually load theme
-        theme = ViewerTheme.load()
+    def __init__(self, window: curses.window, db_file: Path, theme_file: str = ""):
+        theme = ViewerTheme.load(theme_file)
 
         self.__window   : curses.window = window
 
@@ -129,6 +127,7 @@ class Dotter:
 
 
     def add_selection(self, viewer: FileViewer):
+        """Adds all selected files to the database """
         for dir_entry in filter(lambda e: e.selected, self.__dir_list):
             dir_entry.selected = False
 
@@ -191,6 +190,8 @@ class Dotter:
 
 
     def restore_selection(self, viewer: FileViewer):
+        """Move all files back to their original locations"""
+
         # TODO: log
         for entry in filter(lambda e: e.selected, self.__file_list):
             source = self.__db_dir / entry.name
@@ -219,6 +220,8 @@ class Dotter:
 
 
     def delete_selection(self, viewer: FileViewer):
+        """Move all selected files to DB/dots/remove/"""
+
         for entry in filter(lambda e: e.selected, self.__file_list):
             self.__move_to_remove(entry)
 
@@ -263,6 +266,8 @@ class Dotter:
 
 
     def main_view(self):
+        """ListView and Filebrowser for the cwd"""
+
         dir_viewer = FileViewer("Filesystem", self.__dir_list, self.__window)
 
         dir_viewer.add_command('l', self.enter_dir)
@@ -282,6 +287,8 @@ class Dotter:
 
 
     def list_view(self, viewer: FileViewer):
+        """ListView of all registered files"""
+
         window = self.__window.subwin(0, 0)
         file_viewer = FileViewer("Dotter", self.__file_list, window)
 
@@ -303,6 +310,8 @@ class Dotter:
 
 
     def setup_selection(self, viewer: FileViewer):
+        """Creates symlinks on the system for all selected files"""
+
         for entry in filter(lambda e: e.selected, self.__file_list):
             entry.selected = False
 
