@@ -239,7 +239,6 @@ class FileViewer:
         self.__window.addstr(1, 2, self.name, curses.A_BOLD)
         self.__window.hline(4 + self.__list_pad_height, 2, '-', 60)
 
-        # TODO: roper notifications-system
         if self.__warning:
             self.__window.addstr(5 + self.__list_pad_height, 2, "!! ", curses.color_pair(Colors.Warning))
             self.__window.addstr(self.__warning)

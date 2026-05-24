@@ -1,5 +1,4 @@
 import json
-from os import wait
 from pathlib import Path
 import hashlib
 from operator import attrgetter
@@ -53,7 +52,6 @@ class Dotter:
             json.dump(data, fl)
 
 
-    # TODO: have self.__file_list as hashmap[md5 -> path] instead of list?
     def __is_registered(self, entry: FileEntry) -> bool:
         """
         Returns True, if entry is found in the current `__file_list`. Mutates
@@ -235,7 +233,6 @@ class Dotter:
         Only available in Dotter File list View
         """
 
-        # TODO: log
         for entry in filter(lambda e: e.selected, self.__file_list):
             source = self.__db_dir / entry.name
             dest = entry.path
@@ -244,10 +241,12 @@ class Dotter:
                 viewer.warn("Some source files could not be found, removed entries from database")
                 continue
 
-            if dest.exists() and (not dest.is_symlink() or dest.resolve() != source):
-                viewer.note("Some files were not restored, as the destination appeared to link to/be different files")
-                entry.selected = False
-                continue
+            if dest.exists():
+                if not dest.is_symlink() or dest.resolve() != source:
+                    viewer.note("Some files were not restored, as the destination appeared to link to/be different files")
+                    entry.selected = False
+                    continue
+                dest.unlink()
 
             dest.parent.mkdir(parents=True, exist_ok=True)
             source.move(dest)
