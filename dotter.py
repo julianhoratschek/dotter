@@ -1,4 +1,5 @@
 import json
+from os import wait
 from pathlib import Path
 import hashlib
 from operator import attrgetter
@@ -15,7 +16,23 @@ HOME_PATH_PATTERN = re.compile(r"^(?:/home/|/Users/|[\w_]+:\\Users\\|/usr/home/)
 
 
 class Dotter:
+    """
+    Main class for Dotter: Handles management of symlinks and registered files
+    as well as JSON-database
+
+    :ivar __window      : curses.window Main window, created by curses.wrapper
+
+    :ivar __db_file     : Path          Path to the JSON-database file
+    :ivar __db_dir      : Path          Path to DB_DIR for saving config files
+
+    :ivar __file_list   : FileList      Current list of registered files
+
+    :ivar __cwd         : Path          Current working directory for file browser
+    :ivar __dir_list    : FileList      List of Files in current working directory
+    """
+
     def __load_db(self) -> FileList:
+        """Loads FileList from JSON database"""
         if not self.__db_file.exists():
             return []
 
@@ -27,6 +44,7 @@ class Dotter:
 
 
     def __save_json(self):
+        """Saves current file list to JSON database"""
         data = { 
             "files": [entry.to_dict() for entry in self.__file_list] }
 
@@ -95,7 +113,7 @@ class Dotter:
         self.__cwd      : Path          = Path.cwd()
         self.__dir_list : FileList      = []
 
-        # with (Path(__file__).parent / "help.toml").open("rb") as fl:
+        # with (path(__file__).parent / "help.toml").open("rb") as fl:
         #     self.__texts: dict[str, dict[str, str]] = tomllib.load(fl)
 
         self.__read_cwd()
@@ -103,20 +121,31 @@ class Dotter:
 
 
     def enter_dir(self, viewer: FileViewer):
+        """
+        Set cwd to directory described by viewer.current_entry
+        Only available in File Browser View
+        """
+
         if not viewer.current_entry.path.is_dir():
             return
 
         self.__cwd = viewer.current_entry.path
         self.__read_cwd()
+        viewer.refresh()
 
         viewer.set_cur_line(0)
-        viewer.refresh()
 
 
     def dir_up(self, viewer: FileViewer):
+        """
+        Change cwd to parent directory of current file
+        Only available in File Browser View
+        """
+
         old_cwd = self.__cwd
         self.__cwd = self.__cwd.parent
         self.__read_cwd()
+        viewer.refresh()
 
         for i, p in enumerate(self.__dir_list):
             if old_cwd == p.path:
@@ -125,11 +154,14 @@ class Dotter:
             i = 0
 
         viewer.set_cur_line(i)
-        viewer.refresh()
 
 
     def add_selection(self, viewer: FileViewer):
-        """Adds all selected files to the database """
+        """
+        Adds all selected files to the database
+        Only Available in file browser view
+        """
+
         for dir_entry in filter(lambda e: e.selected, self.__dir_list):
             dir_entry.selected = False
 
@@ -167,6 +199,14 @@ class Dotter:
 
 
     def cleanup_list(self, viewer: FileViewer):
+        """
+        Removes entries from database without corresponding source files
+        in DB_DIR, as well as files from DB_DIR without corresponding entries
+        in JSON-Database. This is non-destructive, any files will be moved
+        to DB_DIR/dots/remove/
+        Only Available in Dotter File List View
+        """
+
         # Remove entries from __file_list without corresponding source files
         buf_list = self.__file_list.copy()
         self.__file_list.clear()
@@ -190,7 +230,10 @@ class Dotter:
 
 
     def restore_selection(self, viewer: FileViewer):
-        """Move all files back to their original locations"""
+        """
+        Move all files back to their original locations
+        Only available in Dotter File list View
+        """
 
         # TODO: log
         for entry in filter(lambda e: e.selected, self.__file_list):
@@ -220,7 +263,10 @@ class Dotter:
 
 
     def delete_selection(self, viewer: FileViewer):
-        """Move all selected files to DB/dots/remove/"""
+        """
+        Move all selected files to DB/dots/remove/
+        Only available in Dotter File list View
+        """
 
         for entry in filter(lambda e: e.selected, self.__file_list):
             self.__move_to_remove(entry)
@@ -236,6 +282,14 @@ class Dotter:
 
 
     def edit_selection(self, viewer: FileViewer):
+        """
+        Sets all Home paths to a specified other username
+        Only available in Dotter file list view
+        """
+        # TODO: Change Home paths to other systems?
+        # TODO: More Editing capabilities (e.g. regex?)
+        # TODO: As Command
+
         new_name = viewer.prompt("New User: ")
         if not new_name:
             return
@@ -268,6 +322,10 @@ class Dotter:
     def main_view(self):
         """ListView and Filebrowser for the cwd"""
 
+        def dict_print(viewer: FileViewer, entry: FileEntry, i: int, /, **kwargs):
+            icon = "󰃁 " if self.__is_registered(entry) else "  "
+            FileViewer.default_print(viewer, entry, i, prepend_icon=icon)
+
         dir_viewer = FileViewer("Filesystem", self.__dir_list, self.__window)
 
         dir_viewer.add_command('l', self.enter_dir)
@@ -283,7 +341,7 @@ class Dotter:
             "a -> add selection; " +
             "t -> show registered files; ")
 
-        dir_viewer.show()
+        dir_viewer.show(dict_print)
 
 
     def list_view(self, viewer: FileViewer):
@@ -310,7 +368,10 @@ class Dotter:
 
 
     def setup_selection(self, viewer: FileViewer):
-        """Creates symlinks on the system for all selected files"""
+        """
+        Creates symlinks on the system for all selected files
+        Only available in Dotter File List
+        """
 
         for entry in filter(lambda e: e.selected, self.__file_list):
             entry.selected = False

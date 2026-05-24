@@ -88,7 +88,7 @@ ColorDefaults: dict[Colors, list[int]] = {
 }
 
 class ViewerTheme:
-    """Simple Theme manager. Should not be istanciated directly, only called
+    """Simple Theme manager. Should not be instanciated directly, only called
     via ViewerTheme.load"""
 
     Instance: Self | None = None
@@ -187,7 +187,7 @@ class FileViewer:
     # TODO: Notification system?
 
     @staticmethod
-    def __default_print(viewer: FileViewer, entry: FileEntry, i: int):
+    def default_print(viewer: FileViewer, entry: FileEntry, i: int, /, **kwargs):
         """
         Default per-line printing for entries in the current list
         :ivar viewer    :   FileViewer  The calling instance of FileViewer
@@ -222,6 +222,9 @@ class FileViewer:
         if viewer.cur_line == i:
             arrl = '󰁔'
             arrr = '󰁍'
+
+        if "prepend_icon" in kwargs:
+            icon = str(kwargs["prepend_icon"]) + icon
 
         pad.addstr(f"{arrl} {icon} {sel_str} {i:3d} {entry.path} {arrr}")
         pad.attroff(curses.color_pair(Colors.Directory) |
@@ -298,7 +301,7 @@ class FileViewer:
     def current_entry(self) -> FileEntry:
         """Returns the entry currently under the cursor"""
 
-        return self.__view_list[self.cur_line - self.list_pad_top]
+        return self.__view_list[self.cur_line]
 
 
     def line_down(self):
@@ -395,7 +398,7 @@ class FileViewer:
         :param i    :   int     Index of the entry in the file list
         :param flip :   bool    (Optional) whether to toggle selection (default: True)
         """
-        if 0 < i or i >= len(self.__view_list):
+        if i < 0 or i >= len(self.__view_list):
             return
         e = self.__view_list[i]
         if e.path.is_dir():
@@ -429,7 +432,7 @@ class FileViewer:
         return ret
 
 
-    def show(self, print_callback: PrintCallback = __default_print):
+    def show(self, print_callback: PrintCallback = default_print):
         """
         Shows this FileViewer and executes main loop until the user presses 'q'
         :param print_callback:  PrintCallback   (Optional), function to execute to display lines of entries
@@ -485,15 +488,6 @@ class FileViewer:
                         break
                     cmd = self.__window.getch()
                     inp += chr(cmd)
-                # while True:
-                #     cmd_list = [
-                #         str(c) for c in cmd_list
-                #         if pos < len(c) and chr(cmd) == c[pos]
-                #     ]
-                #     if len(cmd_list) < 2:
-                #         break
-                #     pos += 1
-                #     cmd = self.__window.getch()
 
                 if cmd_list:
                     self.commands[cmd_list[0]].callback(self)
@@ -519,6 +513,7 @@ class FileViewer:
         self.cur_line = idx
         if idx < self.list_pad_top or idx > self.list_pad_top + self.__list_pad_height:
             self.list_pad_top = idx
+
 
     def refresh(self):
         """Reset displayed list to original list"""
