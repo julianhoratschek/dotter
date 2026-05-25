@@ -13,6 +13,7 @@ type CommandCallback    = Callable[[FileViewer], None]
 type PrintCallback      = Callable[[FileViewer, FileEntry, int], None]
 type FileList           = list[FileEntry]
 
+# TODO: Size of window big enough?
 
 class FileEntry:
     """
@@ -51,8 +52,8 @@ class ViewerCommand:
 
 
 class DialogResult(IntEnum):
-    No = 0
-    Yes = 1
+    No      = 0
+    Yes     = 1
 
 
 class FileViewerMode(IntEnum):
