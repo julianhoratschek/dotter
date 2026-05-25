@@ -1,9 +1,10 @@
 from pathlib import Path
-import tomllib
-from typing import Callable, Self, override
+from typing import Callable
 import curses
 from enum import IntEnum
 import re
+
+from file_viewer_theme import Colors
 
 
 # Define types for readability
@@ -49,99 +50,9 @@ class ViewerCommand:
         self.help_text  : str             = help_text
 
 
-class Colors(IntEnum):
-    """Colors defined by this theme"""
-    Directory   = 1
-    Selected    = 2
-    Warning     = 3
-    Note        = 4
-    Help        = 5
-    HelpShort   = 6
-    PreSelect   = 7
-
-    @override
-    def __str__(self) -> str:
-        match self:
-            case Colors.Directory:
-                return "Directory"
-            case Colors.Selected:
-                return "Selected"
-            case Colors.Warning:
-                return "Warning"
-            case Colors.Note:
-                return "Note"
-            case Colors.Help:
-                return "Help"
-            case Colors.HelpShort:
-                return "HelpShort"
-            case Colors.PreSelect:
-                return "PreSelect"
-
-ColorDefaults: dict[Colors, list[int]] = {
-	Colors.Directory: [105, -1],
-	Colors.Selected: [-1,  34],
-	Colors.Warning: [124, -1],
-	Colors.Note: [220, -1],
-	Colors.Help: [-1,  240],
-	Colors.HelpShort: [105, 240],
-	Colors.PreSelect: [-1,  34]
-}
-
-class ViewerTheme:
-    """Simple Theme manager. Should not be instanciated directly, only called
-    via ViewerTheme.load"""
-
-    Instance: Self | None = None
-
-    @staticmethod
-    def __read_theme(theme_data: dict[str, list[int]]):
-        """
-        Reads theme from the provided dictionary, falls back to defaults
-        if theme is malformed """
-
-        for cl, vals in ColorDefaults.items():
-            name = str(cl)
-
-            try:
-                if name in theme_data and len(theme_data[name]) == 2:
-                    vals = list(map(int, theme_data[name]))
-            except ValueError:
-                # TODO: handle correctly
-                pass
-            curses.init_pair(cl, *vals)
-
-    def __init__(self):
-        ViewerTheme.Instance = self
-
-
-    @classmethod
-    def load(cls, theme_file: Path | str = ""):
-        """
-        Loads defaults for FileViewer Theme or reads color data from `theme_file`
-        if provided. Falls back to defaults, if `theme_file` is malformed or
-        missing.
-        :ivar theme_file:   Path|str    Optional, Path to a toml-file providing
-                                        the theme to display
-        """
-
-        if ViewerTheme.Instance:
-            return ViewerTheme.Instance
-
-        curses.curs_set(0)
-
-        curses.start_color()
-        curses.use_default_colors()
-
-        theme_data: dict[str, list[int]] = {}
-        if theme_file and (theme_file := Path(theme_file)).exists():
-            with theme_file.open("rb") as fl:
-                try:
-                    theme_data = tomllib.load(fl)
-                except tomllib.TOMLDecodeError as e:
-                    # TODO: handle
-                    pass
-        ViewerTheme.__read_theme(theme_data)
-        return cls()
+class DialogResult(IntEnum):
+    No = 0
+    Yes = 1
 
 
 class FileViewerMode(IntEnum):
@@ -299,13 +210,11 @@ class FileViewer:
     @property
     def current_entry(self) -> FileEntry:
         """Returns the entry currently under the cursor"""
-
         return self.__view_list[self.cur_line]
 
 
     def line_down(self):
         """Moves cursor one line down, scrolls window if necessary"""
-
         if self.cur_line < len(self.__view_list) - 1:
             self.cur_line += 1
 
@@ -315,7 +224,6 @@ class FileViewer:
 
     def line_up(self):
         """Moves cursor up one line, scrolls window if necessary"""
-
         if self.cur_line > 0:
             self.cur_line -= 1
 
@@ -325,14 +233,12 @@ class FileViewer:
 
     def goto_top(self):
         """Move cursor to the top of the list"""
-
         self.cur_line = 0
         self.list_pad_top = 0
 
 
     def goto_bottom(self):
         """Move cursor to the bottom of the list"""
-
         self.cur_line = len(self.__view_list) - 1
         self.list_pad_top = len(self.__view_list) - self.__list_pad_height
         if self.list_pad_top < 0:
@@ -341,7 +247,6 @@ class FileViewer:
 
     def normal_mode(self):
         """Switch to normal mode, executing changing-code if necessary"""
-
         match self.mode:
             case FileViewerMode.Select:
                 self.toggle_select(exit_only=True)
@@ -360,7 +265,6 @@ class FileViewer:
         """Switch from or to select-mode. If `exit_only` is True, this will
         only exit select mode but not enable it. On exiting select mode, this
         method selects all pre-selected files"""
-
         if self.mode == FileViewerMode.Select:
             self.mode = FileViewerMode.Normal
             for i in fliprange(self.selection_start, self.cur_line):
@@ -417,6 +321,7 @@ class FileViewer:
 
         height, width = self.__window.getmaxyx()
         win = self.__window.derwin(3, width - 2, height - 3, 2)
+        win.bkgd(' ', curses.color_pair(Colors.Help))
         win.box()
 
         win.addstr(1, 2, msg)
@@ -429,6 +334,52 @@ class FileViewer:
         del win
 
         return ret
+
+
+    def yesno_prompt(self, msg: str) -> DialogResult:
+        curses.curs_set(1)
+
+        _, width = self.__window.getmaxyx()
+        win = self.__window.derwin(12, 50, 4, width // 2 - 25)
+        win.bkgd(' ', curses.color_pair(Colors.Help))
+        win.box()
+
+        for i, line in enumerate(msg.splitlines()):
+            win.addstr(2 + i, 2, line)
+
+        win.addch(8, 15, 'Y', curses.color_pair(Colors.HelpShort))
+        win.addstr("es")
+        win.addch(8, 30, 'N', curses.color_pair(Colors.HelpShort))
+        win.addch('o')
+        win.refresh()
+
+        res = DialogResult.Yes
+        win.move(8, 15)
+
+        while True:
+            cmd = win.getch()
+            if cmd == ord('l'):
+                win.move(8, 30)
+                res = DialogResult.No
+            elif cmd == ord('n') or cmd == ord('N'):
+                res = DialogResult.No
+                break
+            elif cmd == ord('h'):
+                win.move(8, 15)
+                res = DialogResult.Yes
+            elif cmd == ord('y') or cmd == ord('Y'):
+                res = DialogResult.Yes
+                break
+            elif cmd == ord('q') or cmd == 27:
+                res = DialogResult.No
+                break
+            elif cmd in (10, 13, curses.KEY_ENTER) or cmd == 32:
+                break
+
+        curses.curs_set(0)
+        del win
+
+        return res
 
 
     def show(self, print_callback: PrintCallback = default_print):

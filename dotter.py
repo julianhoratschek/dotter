@@ -6,7 +6,8 @@ import re
 from typing import Callable
 import curses
 
-from file_viewer_curses import FileViewer, ViewerTheme, FileEntry, FileList
+from file_viewer_curses import FileViewer, FileEntry, FileList, DialogResult
+from file_viewer_theme import ViewerTheme
 
 
 # Define Constants
@@ -99,7 +100,7 @@ class Dotter:
 
 
     def __init__(self, window: curses.window, db_file: Path, theme_file: str = ""):
-        theme = ViewerTheme.load(theme_file)
+        theme = ViewerTheme(theme_file)
 
         self.__window   : curses.window = window
 
@@ -110,9 +111,6 @@ class Dotter:
 
         self.__cwd      : Path          = Path.cwd()
         self.__dir_list : FileList      = []
-
-        # with (path(__file__).parent / "help.toml").open("rb") as fl:
-        #     self.__texts: dict[str, dict[str, str]] = tomllib.load(fl)
 
         self.__read_cwd()
         self.__db_dir.mkdir(exist_ok=True, parents=True)
@@ -160,7 +158,13 @@ class Dotter:
         Only Available in file browser view
         """
 
-        for dir_entry in filter(lambda e: e.selected, self.__dir_list):
+        lst = list(filter(lambda e: e.selected, self.__dir_list))
+        if not viewer.yesno_prompt(
+            f"Add {len(lst)} Files to the database?\n" + 
+            "This will move files and create symlinks."):
+            return
+
+        for dir_entry in lst:
             dir_entry.selected = False
 
             if dir_entry.path.is_dir():
@@ -205,6 +209,11 @@ class Dotter:
         Only Available in Dotter File List View
         """
 
+        if not viewer.yesno_prompt(
+            "Clean Database and move unlinked\n"+
+            "files to DB_DIR/dots/remove?"):
+            return
+
         # Remove entries from __file_list without corresponding source files
         buf_list = self.__file_list.copy()
         self.__file_list.clear()
@@ -233,7 +242,14 @@ class Dotter:
         Only available in Dotter File list View
         """
 
-        for entry in filter(lambda e: e.selected, self.__file_list):
+        lst = list(filter(lambda e: e.selected, self.__file_list))
+        if not viewer.yesno_prompt(
+            f"Move {len(lst)} files back to their\n"+
+            "original location and remove them\n"+
+            "from the database?"):
+            return
+
+        for entry in lst:
             source = self.__db_dir / entry.name
             dest = entry.path
 
@@ -267,7 +283,13 @@ class Dotter:
         Only available in Dotter File list View
         """
 
-        for entry in filter(lambda e: e.selected, self.__file_list):
+        lst = list(filter(lambda e: e.selected, self.__file_list))
+        if not viewer.yesno_prompt(
+            f"Move {len(lst)} files to DB_DIR/dots/remove/ and remove\n" +
+            "them from the database?"):
+            return
+
+        for entry in lst:
             self.__move_to_remove(entry)
 
         buf_list = self.__file_list.copy()
@@ -371,6 +393,15 @@ class Dotter:
         Creates symlinks on the system for all selected files
         Only available in Dotter File List
         """
+
+        lst = list(filter(lambda e: e.selected, self.__file_list))
+        if not viewer.yesno_prompt(
+            f"Setup {len(lst)} files on your system?\n"+
+            "These files will be created\n"+
+            "*exactly* at their paths!\n"+
+            "This will create symlinks\n"+
+            "on your system"):
+            return
 
         for entry in filter(lambda e: e.selected, self.__file_list):
             entry.selected = False
