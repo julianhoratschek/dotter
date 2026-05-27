@@ -45,7 +45,6 @@ class Dotter:
         return [FileEntry(Path(file["path"]), file["name"])
                 for file in data["files"]]
 
-
     def __save_json(self):
         """Saves current file list to JSON database"""
         data = { 
@@ -54,7 +53,6 @@ class Dotter:
         self.__db_file.parent.mkdir(exist_ok=True, parents=True)
         with self.__db_file.open("w+") as fl:
             json.dump(data, fl)
-
 
     def __is_registered(self, entry: FileEntry) -> bool:
         """
@@ -73,7 +71,6 @@ class Dotter:
 
         return any(e.name == entry.name for e in self.__file_list)
 
-    
     def __move_to_remove(self, entry: FileEntry):
         """Moves file from dotter/dots/ directory to dotter/dots/remove"""
 
@@ -88,19 +85,17 @@ class Dotter:
         new_location.parent.mkdir(parents=True, exist_ok=True)
         old_location.move(new_location)
 
-
     def __read_cwd(self):
         """Load content of cwd into __dir_list without changing instances"""
 
         self.__dir_list.clear()
         self.__dir_list.extend([
-            FileEntry(file) for file in list(self.__cwd.iterdir())])
+            FileEntry(file) for file in self.__cwd.iterdir()])
 
         # Sort by pathname
         self.__dir_list.sort(key=attrgetter("path"))
         # Sort by dir/files
         self.__dir_list.sort(key=lambda x: x.path.is_dir(), reverse=True)
-
 
     def __init__(self, window: curses.window, db_file: Path, theme_file: str = ""):
         theme = ViewerTheme(theme_file)
@@ -118,7 +113,6 @@ class Dotter:
         self.__read_cwd()
         self.__db_dir.mkdir(exist_ok=True, parents=True)
 
-
     def enter_dir(self, viewer: FileViewer):
         """
         Set cwd to directory described by viewer.current_entry
@@ -133,7 +127,6 @@ class Dotter:
         viewer.refresh()
 
         viewer.cur_line = 0
-
 
     def dir_up(self, viewer: FileViewer):
         """
@@ -154,7 +147,6 @@ class Dotter:
             i = 0
 
         viewer.cur_line = i
-
 
     def add_selection(self, viewer: FileViewer):
         """
@@ -203,7 +195,6 @@ class Dotter:
         viewer.note("Added files")
         viewer.refresh()
 
-
     def cleanup_list(self, viewer: FileViewer):
         """
         Removes entries from database without corresponding source files
@@ -239,7 +230,6 @@ class Dotter:
 
         viewer.note(f"Moved {moved_files} to {self.__db_dir}/remove/")
         viewer.refresh()
-
 
     def restore_selection(self, viewer: FileViewer):
         """
@@ -281,7 +271,6 @@ class Dotter:
         viewer.note("Restored files")
         viewer.refresh()
 
-
     def delete_selection(self, viewer: FileViewer):
         """
         Move all selected files to DB/dots/remove/
@@ -296,6 +285,11 @@ class Dotter:
             return
 
         for entry in lst:
+            if not entry.path.is_symlink() \
+            or entry.path.resolve() != (self.__db_dir / entry.name):
+                continue
+
+            entry.path.unlink()
             self.__move_to_remove(entry)
 
         buf_list = self.__file_list.copy()
@@ -306,7 +300,6 @@ class Dotter:
 
         viewer.refresh()
         viewer.note(f"Moved files to {self.__db_dir}/remove/")
-
 
     def edit_selection(self, viewer: FileViewer):
         """
@@ -345,7 +338,6 @@ class Dotter:
         self.__file_list.extend(extend_list)
         viewer.refresh()
 
-
     def main_view(self):
         """
         File-Explorer like window.
@@ -380,7 +372,6 @@ class Dotter:
 
         dir_viewer.show(dict_print)
 
-
     def list_view(self, _: FileViewer):
         """
         Opens a new window with a list of all registered files.
@@ -397,25 +388,24 @@ class Dotter:
         file_viewer.add_command('d', self.delete_selection,
                                 modes={FileViewerModeType.Normal})
 
-        file_viewer.add_command('e', self.edit_selection,
+        file_viewer.add_command('eh', self.edit_selection,
                                 modes={FileViewerModeType.Normal})
 
         file_viewer.add_command('s', self.setup_selection,
                                 modes={FileViewerModeType.Normal})
 
-        file_viewer.add_command('cl', self.cleanup_list,
+        file_viewer.add_command(['cl', 'cc'], self.cleanup_list,
                                 modes={FileViewerModeType.Normal})
 
         file_viewer.set_help_line(
             "r -> restore selection; " +
-            "e -> edit home path; " +
+            "eh -> edit home path; " +
             "d -> delete selection; " +
             "s -> Setup selection; " +
             "cl -> clean database; ")
 
         file_viewer.show()
         del window
-
 
     def setup_selection(self, viewer: FileViewer):
         """

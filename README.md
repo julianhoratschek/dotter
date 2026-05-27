@@ -1,138 +1,197 @@
 # Dotter :chicken:
 
-Cross-Platform Dot-File Manager for configuration files in pure python without
-external dependencies.
+## Intended Use
+
+Dotter is a TUI dots-file management software in pure python without external
+dependencies. The main idea is to keep all your dot-files in one location
+to let a versioning manager of your choice easily track changes on them,
+while your system will find symlinks to the respective files at their
+original location.
+Furthermore, Dotter enables you to easily save and set up your configuration
+on any new system, as it makes it easy to change home-directories of the
+saved dot-files.
+Lastly, Dotter is designed to work non-destructively. Even if you should choose
+to remove a file from the database, it will not be destroyed but moved to a
+special sub-folder for further inspection.
 
 
-## Intended Use :thought_balloon:
+## Dependencies
 
-:inbox_tray: Bundle config (and other) files in one location
+- Python >= 3.14
+- Nerd Fonts (Optional, for icons)
 
-:paperclip: Automatic management of symlinks on your system to have all programs always
-  find their respective config-files
-
-:blue_heart: Non-Destructive. None of the original files are deleted or removed
-
-:recycle: Use a version-management system of your choice to manage all of your
-  config-files in one place
-
-:leftwards_arrow_with_hook: Easily reset changes: removing a file from Dotter will move it back to its original location
+## Command Line Parameters
 
 
-## Background :bomb:
-
-- Dotter Allows the user to select files from the system
-- Each selected file will be moved to ~/.cache/dotter/dots/ (dots-folder)
-- For each file a symlink will be created at its original location
-- This allows for:
-    - Managing of the dots-folder with a version management system
-    - Easily setup your dots-files on a new system using dotters setup-function
+| .. | ..        | ..                 | ..                                           |
+| -- | --------- | ------------------ | -------------------------------------------- |
+| -d | --json-db | Path to json file  | Where to find a custom JSON file.            |
+| -t | --theme   | Path to theme toml | File containing some or all themeing options |
 
 
-## Dependencies :package:
+### JSON DB
 
-- python >= 13.14
-- (optional) NerdFonts for Icons
+Dotter uses JSON as a simple database format to keep track of its managed files
+and their locations. If the user does not define a custom JSON file, Dotter will
+look for it in `~/.cache/dotter/db.json`.
 
+All Files moved or read by Dotter will be searched for in `<path-to-json>/dots/`.
 
-## Usage :wrench:
+### Creating Theme
 
-Dotter has two main-views:
+Dotter is customizable. You can point Dotter to a specific theme-file by passing
+the command line argument `-t` or `--theme`.
+This expects to find a [TOML-File](https://toml.io/en/v1.1.0) with all or some of the following options:
 
-- [File-Manager](#file-manager-view-open_file_folder) (for traversing directories and adding files)
-- [Dotter-View](#dotter-view-egg) (for managing registered files: edit, delete, or setup system)
+```toml
+# Default-Values
 
-Execution:
-
-```bash
-python main.py
+Directory = [105,  -1]
+Selected  = [ -1,  34]
+Warning   = [124,  -1]
+Note      = [220,  -1]
+Help      = [ -1, 240]
+HelpShort = [105, 240]
+PreSelect = [ -1,  34]
 ```
 
-### Command Line Options 🚀
-
-|Command|Alias(es)|Description|Parameters|Default|
-|-------|---------|-----------|----------|-------|
-|-d     |--json-db|Location of a user defined JSON-File. Must be in a directory with a /dots/ folder|<file>.json|~/.cache/dotter/db.json|
-|-y     |--all-yes|Don't ask before executing actions||False|
+The list represents [ANSI-ESCAPE-Colors](https://gist.github.com/fnky/458719343aabd01cfb17a3a4f7296797) as \[foreground, background\]. Use `-1`
+to signal to use default-colors.
 
 
-### All Views :cyclone:
+## Commands
 
-All managers expose these commands:
+### General Commands
 
+Dotter uses vim-like key-bindings wherever possible. Also, vim-like modes are
+used to facilitate specific actions. The globally available commands are:
 
-| Command          | Alias(es)  | Description                                       | Parameters                            |
-| ---------------- | ---------- | ------------------------------------------------- | ------------------------------------- |
-| quit             | q, exit    | Closes current View                               |                                       |
-| /                |            | Filters current View by regex                     | Regex-String or empty to reset filter |
-| !                |            | Switches selection mode to 'select' or 'deselect' |                                       |
-| Selection-Syntax |            | See [Selection-Syntax](#selection-syntax)         |                                       |
-
-
-
-#### Selection-Syntax
-
-- Selects files by ID from the current View
-- Comma-Separated list of numbers or ranges
-- An asterisk (*) at any place will select all visible files
-
-Example:
-```
-1, 2,43 5       # Selects files 1, 2, 43 and 5
-3, 4 - 8, 9 11  # Selects files 3, 4, 5, 6, 7, 8, 9 and 11
-```
+| Key     | Description            | Modes          |
+| ------- | ---------------------- | -------------- |
+| `gg g0` | Move to top of list    | Normal, Select |
+| `G`     | Move to bottom of list | Normal, Select |
+| `j`     | Move one line down     | Normal, Select |
+| `k`     | Move one line up       | Normal, Select |
+| `q`     | Quit Viewer            | Normal, Select |
+| `v`     | Enter/Exit Select Mode | Normal, Select |
+| `/`     | Enter Filter Mode      | Normal, Select |
 
 
-### File-Manager-View :open_file_folder:
+#### Select Mode
 
-Displays files of the current working directory.
+Pressing `v` will enter/exit Select-Mode. In this mode, you can select multiple
+files at once by moving over them. A highlighter will signal, which files will
+be selected. When exiting Select-Mode (by pressing `v` or `ESC`), the highlightet
+files will be selected.
 
-Exposes the following commands:
+#### Filter Mode
 
-- **cd \<ID\>|..|\<name\>**
-  
-  Changes working directory to a file indicated by an ID of the current view, a name in the current list or the parent directory ('..')
+Pressing `/` will enter Filter-Mode. Press `ESC` to exit Filter-Mode.
+In this mode, you can type in regular expressions (python-style) to filter
+the displayed list. The filter resets when changing directories. To reset
+the filter, simply leave the filter-prompt empty.
 
-- **add|a**
+### File Browser
 
-  Adds all selected files to the database and moves the respective files from their location to DB_DIR/dots/. A symlink to the moves
-  file will be created at the old location.
-
-- **list|l**
-
-  Enters [Dotter-View](#dotter-view-egg) to work with already registered files
+This is Dotters Main Screen. Here, you can traverse directories, select files
+and add them to your database. Available commands are:
 
 
-### Dotter-View :egg:
+| ..  | ..                                                       |
+| --- | -------------------------------------------------------- |
+| `a` | [Add selected files to Dotter](#register-files)          |
+| `h` | [Move to parent directory](#traversing-directories)      |
+| `l` | [Enter Directory](#traversing-directories)               |
+| `t` | [Show and edit registered files](#list-registered-files) |
 
-Displays all registered config-files.
 
-Exposes the following commands:
+#### Register files
 
-- **delete|d|remove|r \[trash\]**
+Pressing `a` while having files selected in the file browser, will add those
+files to Dotters internal database. The original file will be moved to `~/.cache/dotter/dots/`
+and a symlink to that new location will be created at its original location.
 
-  Removes all selected entries from the database, removes associated symlinks and moves corresponding files back to their original location.
-  This will fail, if the symlink was changed or replaced by another file.
-  
-  If you don't wish to move files back to their original place, use parameter ```trash```, which will move them to DB_DIR/dots/remove/ instead.
-  
-- **edit|e \[user|usr \[\<new_name>\]\]**
+If a file is already registered, nothing will happen. If a file is already registered,
+but the added file seems to differ from it (e.g. is not a symlink or is a symlink
+that links elsewhere), the old file from the database will be moved to `~/.cache/dotter/dots/remove/` and the new file will take its place.
 
-  Edits all selected entries according to respective subcommands:
-  
-  - **user|usr \[\<new_name>\]**
-  
-    Changes home directory of the selected entries either to <new_name>, if given, or to the current users home-directory, if omitted
-    
-- **setup|s|create|c**
+Please note, that you cannot add directories. You will have to select all files
+individually.
 
-  Creates Symlinks to all selected entries in your file system. This will not overwrite existing files or symlinks.
-  
-  Be cautious: This will create symlinks at **exactly** the path indicated by the entry. If you want them e.g. in another users home
-  directory (e.g. your own), you should use ```edit``` to apply changes first
-  
-- **cleanup**
 
-  Removes all entries in the JSON-Database without corresponding files in DB_DIR/dots/.
-  
-  This will also move all files from DB_DIR/dots/ without entries in the JSON-Database to DB_DIR/dots/remove/
+#### Traversing Directories
+
+Pressing `l` will enter the currently selected directory, pressing `h` at any
+time will move one directory up. If the selected entry is not a directory,
+this command has no effect.
+
+
+#### List Registered Files
+
+Pressing `t` will open list-mode, where all registered files will be presented
+and can be changed. Here, you can edit, remove, restore or setup your dots files.
+See [Dotter View](#dotter-view) for a complete command list.
+
+
+### Dotter View
+
+This View lists all registered files in your database. You can edit the paths
+of these files, restore or remove them and clean your database if needed.
+Additionally, if you set up a new system, you can create symlinks to selected
+files on your system to speed up dot-files setup.
+
+
+| ..      | ..                                |
+| ------- | --------------------------------- |
+| `cl cc` | [Clean Database](#clean-database) |
+| `r`     | [Restore files](#restore-files)   |
+| `d`     | [Delete files](#delete-files)     |
+| `eh`    | [Edit Home Path](#edit-home-path) |
+| `s`     | [Setup Files](#setup-files)       |
+
+
+
+#### Clean Database
+
+Pressing `cl` or `cc` will clean up the database and saved files. All database
+entries without a corresponding file in `~/.cache/dotter/dots` will be removed.
+Also, all files in the `dots` directory without entries in the database will
+be moved to `~/.cache/dotter/dots/remove/`.
+
+
+#### Restore Files
+
+Pressing `r` will restore all selected files. It will remove the selected entries
+from the database and move the corresponding files from `~/.cache/dotter/dots/`
+back to their original locations.
+
+
+#### Delete Files
+
+Pressing `d` will delete all selected entries. Dotter is designed to be non-destructive,
+so no files will actually be deleted. The entries will be removed from the database,
+the corresponding files are moved to `~/.cache/dotter/dots/remove/`, their symlinks
+are removed from the system.
+
+
+#### Edit Home path
+
+Pressing `eh` will change the home path of all selected entries. The user will
+be prompted to enter a new username, leaving this empty will abort the operation.
+Otherwise, the usernames in all selected entries will be changed to the new
+username and will be saved as new entries (respective files in the `dots`-directory
+will be copied).
+
+This operation is non-destructive, old files or entries will not be touched,
+the new entries will link to separate, copied files.
+
+#### Setup Files
+
+Pressing `s` will setup the selected files on your system. Beware, the symlinks
+will be created **exactly** at the locations their paths point to. If you don't
+have the necessary permissions or try to create files in the wrong home directory,
+the operation will fail.
+
+This will **not** overwrite existing files. If you already have a dot file at
+the location Dotter tries to insert a symlink, the operation will skip that file.
+Please remove all unwanted dot-files before executing this command.
