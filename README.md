@@ -1,6 +1,6 @@
-# Dotter :chicken:
+# Dotter 🐔
 
-## Intended Use
+## Intended Use 🛠️
 
 Dotter is a TUI dots-file management software in pure python without external
 dependencies. The main idea is to keep all your dot-files in one location
@@ -15,15 +15,15 @@ to remove a file from the database, it will not be destroyed but moved to a
 special sub-folder for further inspection.
 
 
-## Dependencies
+## Dependencies 📦
 
 - Python >= 3.14
 - Nerd Fonts (Optional, for icons)
 
-## Command Line Parameters
+## Command Line Parameters 📣
 
 
-| .. | ..        | ..                 | ..                                           |
+| Command | Full Command        | Parameter                 | Description                                           |
 | -- | --------- | ------------------ | -------------------------------------------- |
 | -d | --json-db | Path to json file  | Where to find a custom JSON file.            |
 | -t | --theme   | Path to theme toml | File containing some or all themeing options |
@@ -59,9 +59,9 @@ The list represents [ANSI-ESCAPE-Colors](https://gist.github.com/fnky/458719343a
 to signal to use default-colors.
 
 
-## Commands
+## Commands ⌨️
 
-### General Commands
+### General Commands 🌐
 
 Dotter uses vim-like key-bindings wherever possible. Also, vim-like modes are
 used to facilitate specific actions. The globally available commands are:
@@ -81,7 +81,7 @@ used to facilitate specific actions. The globally available commands are:
 
 Pressing `v` will enter/exit Select-Mode. In this mode, you can select multiple
 files at once by moving over them. A highlighter will signal, which files will
-be selected. When exiting Select-Mode (by pressing `v` or `ESC`), the highlightet
+be selected. When exiting Select-Mode (by pressing `v` or `ESC`), the highlighted
 files will be selected.
 
 #### Filter Mode
@@ -91,13 +91,13 @@ In this mode, you can type in regular expressions (python-style) to filter
 the displayed list. The filter resets when changing directories. To reset
 the filter, simply leave the filter-prompt empty.
 
-### File Browser
+### File Browser 📂
 
 This is Dotters Main Screen. Here, you can traverse directories, select files
 and add them to your database. Available commands are:
 
 
-| ..  | ..                                                       |
+| Key  | Description                                                       |
 | --- | -------------------------------------------------------- |
 | `a` | [Add selected files to Dotter](#register-files)          |
 | `h` | [Move to parent directory](#traversing-directories)      |
@@ -133,7 +133,7 @@ and can be changed. Here, you can edit, remove, restore or setup your dots files
 See [Dotter View](#dotter-view) for a complete command list.
 
 
-### Dotter View
+### Dotter View 🗒️
 
 This View lists all registered files in your database. You can edit the paths
 of these files, restore or remove them and clean your database if needed.
@@ -141,7 +141,7 @@ Additionally, if you set up a new system, you can create symlinks to selected
 files on your system to speed up dot-files setup.
 
 
-| ..      | ..                                |
+| Key      | Description                                |
 | ------- | --------------------------------- |
 | `cl cc` | [Clean Database](#clean-database) |
 | `r`     | [Restore files](#restore-files)   |
