@@ -1,11 +1,12 @@
 import curses
-import difflib
+import re
 from typing import override, Protocol
 from enum import IntEnum
-from util import fliprange
 from pathlib import Path
 
+from util import fliprange
 from file_viewer_theme import Colors
+
 
 class FileEntry:
     """
@@ -62,16 +63,16 @@ class FileViewerContext(Protocol):
 
 class FileViewerModeType(IntEnum):
     """Vim-like file modes for FileViewer"""
-    Normal  = 0
-    Select  = 1
-    Command = 2     # TODO: do we need this?
-    Filter  = 3     # TODO: implement?
+    Normal      = 0
+    Select      = 1
+    Command     = 2     # TODO: do we need this?
+    Filter      = 3     # TODO: implement?
 
 
 class FileViewerMode:
     def __init__(self, parent: FileViewerContext, mode_type: FileViewerModeType):
-        self.parent: FileViewerContext = parent
-        self.mode_type: FileViewerModeType = mode_type
+        self.parent     : FileViewerContext     = parent
+        self.mode_type  : FileViewerModeType    = mode_type
 
     def enter(self):
         pass
@@ -80,6 +81,12 @@ class FileViewerMode:
         pass
 
     def exec(self, cmd: int) -> bool:
+        """
+        :returns:   True, if the input was handled by exec, otherwise return
+                    False to indicate that `cmd` should be compared to
+                    registered FileViewerCommands of `parent`
+                  
+        """
         return False
 
     def draw(self, window: curses.window):
@@ -90,6 +97,7 @@ class NormalMode(FileViewerMode):
     def __init__(self, parent: FileViewerContext):
         super().__init__(parent, FileViewerModeType.Normal)
 
+
     @override
     def exec(self, cmd: int) -> bool:
         # ENTER, SPACE
@@ -99,9 +107,9 @@ class NormalMode(FileViewerMode):
         elif cmd == ord('/'):
             self.parent.set_mode(FileViewerModeType.Filter)
 
-        elif cmd == ord(':'):
-            # TODO: command mode
-            pass
+        # elif cmd == ord(':'):
+        #     # TODO: command mode
+        #     pass
 
         # Look for registered commands
         else:
@@ -113,12 +121,15 @@ class NormalMode(FileViewerMode):
 class SelectMode(FileViewerMode):
     def __init__(self, parent: FileViewerContext):
         super().__init__(parent, FileViewerModeType.Select)
+
         self.selection_start: int = 0
+
 
     @override
     def enter(self):
         self.selection_start = self.parent.cur_line
         return super().enter()
+
 
     @override
     def exit(self):
@@ -126,26 +137,30 @@ class SelectMode(FileViewerMode):
             self.parent.select_entry(i, flip=False)
         return super().exit()
 
+
     @override
     def exec(self, cmd: int) -> bool:
+        # ESC
         if cmd == 27:
             self.parent.set_mode(FileViewerModeType.Normal)
         return super().exec(cmd)
 
+
     @override
     def draw(self, window: curses.window):
+        # Draw preselect-bar
         pad = self.parent.list_pad
         for y in fliprange(self.selection_start, self.parent.cur_line):
             pad.addch(y, 1, ' ', curses.color_pair(Colors.PreSelect))
-
 
 
 class FilterMode(FileViewerMode):
     def __init__(self, parent: FileViewerContext):
         super().__init__(parent, FileViewerModeType.Filter)
 
-        self.filter_string: str = ""
-        self.overlay_win: curses.window | None = None
+        self.filter_string  : str                   = ""
+        self.overlay_win    : curses.window | None  = None
+
 
     @override
     def enter(self):
@@ -154,10 +169,7 @@ class FilterMode(FileViewerMode):
 
         y, x = self.parent.window.getmaxyx()
         self.overlay_win = self.parent.window.derwin(3, x - 4, y - 3, 2)
-        self.overlay_win.bkgd(' ', curses.color_pair(Colors.Help))
-        self.overlay_win.box()
-
-        self.overlay_win.move(1, 3)
+        self.overlay_win.move(1, 2)
 
         return super().enter()
 
@@ -178,24 +190,40 @@ class FilterMode(FileViewerMode):
             self.parent.set_mode(FileViewerModeType.Normal)
             return True
 
+        # BACKSPACE
         elif cmd in (8, 127, curses.KEY_BACKSPACE):
             self.filter_string = self.filter_string[:-1]
 
         else:
             self.filter_string += chr(cmd)
 
-        path_list = difflib.get_close_matches(
-            self.filter_string,
-            map(lambda p: str(p.path), self.parent.file_list),
-            len(self.parent.file_list))
-        self.parent.view_list = [
-            e for e in self.parent.file_list if str(e.path) in path_list]
+        try:
+            pattern = re.compile(self.filter_string)
+            self.parent.view_list = [e 
+                for e in self.parent.file_list
+                if pattern.search(str(e.path))] 
+        except re.PatternError:
+            pass
 
         return True
 
+
     @override
     def draw(self, window: curses.window):
+        if not self.overlay_win:
+            return
+
+        # window.addstr(2, 4, f"Filter: {self.filter_string}")
+        #
+        self.overlay_win.erase()
+        self.overlay_win.bkgd(' ', curses.color_pair(Colors.Help))
+        self.overlay_win.box()
+        # self.overlay_win.overwrite(self.parent.window)
+
         self.overlay_win.addstr(1, 2, '/ ', curses.color_pair(Colors.HelpShort))
         self.overlay_win.addstr(self.filter_string)
+
+        self.overlay_win.noutrefresh()
+
         return super().draw(window)
 

@@ -6,8 +6,11 @@ import re
 from typing import Callable
 import curses
 
-from file_viewer_curses import FileViewer, FileEntry, FileList, DialogResult
+from file_viewer_modes import FileEntry, FileViewerModeType
+from file_viewer_curses import FileViewer, FileList
 from file_viewer_theme import ViewerTheme
+
+from prompts import yesno_prompt, prompt
 
 
 # Define Constants
@@ -129,7 +132,7 @@ class Dotter:
         self.__read_cwd()
         viewer.refresh()
 
-        viewer.set_cur_line(0)
+        viewer.cur_line = 0
 
 
     def dir_up(self, viewer: FileViewer):
@@ -149,7 +152,7 @@ class Dotter:
         else:
             i = 0
 
-        viewer.set_cur_line(i)
+        viewer.cur_line = i
 
 
     def add_selection(self, viewer: FileViewer):
@@ -159,7 +162,7 @@ class Dotter:
         """
 
         lst = list(filter(lambda e: e.selected, self.__dir_list))
-        if not viewer.yesno_prompt(
+        if not yesno_prompt(viewer.window,
             f"Add {len(lst)} Files to the database?\n" + 
             "This will move files and create symlinks."):
             return
@@ -209,7 +212,7 @@ class Dotter:
         Only Available in Dotter File List View
         """
 
-        if not viewer.yesno_prompt(
+        if not yesno_prompt(viewer.window,
             "Clean Database and move unlinked\n"+
             "files to DB_DIR/dots/remove?"):
             return
@@ -243,7 +246,7 @@ class Dotter:
         """
 
         lst = list(filter(lambda e: e.selected, self.__file_list))
-        if not viewer.yesno_prompt(
+        if not yesno_prompt(viewer.window,
             f"Move {len(lst)} files back to their\n"+
             "original location and remove them\n"+
             "from the database?"):
@@ -284,7 +287,7 @@ class Dotter:
         """
 
         lst = list(filter(lambda e: e.selected, self.__file_list))
-        if not viewer.yesno_prompt(
+        if not yesno_prompt(viewer.window,
             f"Move {len(lst)} files to DB_DIR/dots/remove/ and remove\n" +
             "them from the database?"):
             return
@@ -311,7 +314,7 @@ class Dotter:
         # TODO: More Editing capabilities (e.g. regex?)
         # TODO: As Command
 
-        # new_name = viewer.prompt("New User: ")
+        new_name = prompt(viewer.window, "New User: ")
         new_name = None
         if not new_name:
             return
@@ -350,12 +353,16 @@ class Dotter:
 
         dir_viewer = FileViewer("Filesystem", self.__dir_list, self.__window)
 
-        dir_viewer.add_command('l', self.enter_dir)
-        dir_viewer.add_command('h', self.dir_up)
+        dir_viewer.add_command('l', self.enter_dir,
+                               modes={FileViewerModeType.Normal})
+        dir_viewer.add_command('h', self.dir_up,
+                               modes={FileViewerModeType.Normal})
 
-        dir_viewer.add_command('a', self.add_selection)
+        dir_viewer.add_command('a', self.add_selection,
+                               modes={FileViewerModeType.Normal})
 
-        dir_viewer.add_command('t', self.list_view)
+        dir_viewer.add_command('t', self.list_view,
+                               modes={FileViewerModeType.Normal})
 
         dir_viewer.set_help_line(
             "l -> enter dir; " +
@@ -372,11 +379,16 @@ class Dotter:
         window = self.__window.subwin(0, 0)
         file_viewer = FileViewer("Registered Files", self.__file_list, window)
 
-        file_viewer.add_command('r', self.restore_selection)
-        file_viewer.add_command('d', self.delete_selection)
-        file_viewer.add_command('e', self.edit_selection)
-        file_viewer.add_command('s', self.setup_selection)
-        file_viewer.add_command('cl', self.cleanup_list)
+        file_viewer.add_command('r', self.restore_selection,
+                                modes={FileViewerModeType.Normal})
+        file_viewer.add_command('d', self.delete_selection,
+                                modes={FileViewerModeType.Normal})
+        file_viewer.add_command('e', self.edit_selection,
+                                modes={FileViewerModeType.Normal})
+        file_viewer.add_command('s', self.setup_selection,
+                                modes={FileViewerModeType.Normal})
+        file_viewer.add_command('cl', self.cleanup_list,
+                                modes={FileViewerModeType.Normal})
 
         file_viewer.set_help_line(
             "r -> restore selection; " +
@@ -396,7 +408,7 @@ class Dotter:
         """
 
         lst = list(filter(lambda e: e.selected, self.__file_list))
-        if not viewer.yesno_prompt(
+        if not yesno_prompt(viewer.window,
             f"Setup {len(lst)} files on your system?\n"+
             "These files will be created\n"+
             "*exactly* at their paths!\n"+
