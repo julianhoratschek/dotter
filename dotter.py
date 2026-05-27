@@ -311,7 +311,8 @@ class Dotter:
         # TODO: More Editing capabilities (e.g. regex?)
         # TODO: As Command
 
-        new_name = viewer.prompt("New User: ")
+        # new_name = viewer.prompt("New User: ")
+        new_name = None
         if not new_name:
             return
 
