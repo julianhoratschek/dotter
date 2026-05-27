@@ -12,10 +12,10 @@ class FileEntry:
     """
     Describes one database- or directory-entry to display with FileViewer
 
-    :ivar path:     Path    Absolute path to the location of the file
-    :ivar name:     str     Name describing the file, for Database-files md5-sum of
-                            their absolute path
-    :ivar selected: bool    True, if the file is currenly selected
+    :ivar path    :     Absolute path to the location of the file
+    :ivar name    :     Name describing the file, for Database-files md5-sum of
+                        their absolute path
+    :ivar selected:     True, if the file is currently selected
     """
 
     def __init__(self, path: Path, name: str = "", selected: bool = False):
@@ -23,13 +23,14 @@ class FileEntry:
         self.name       : str   = name
         self.selected   : bool  = selected
 
-
     def to_dict(self) -> dict[str, str]:
         """ Returns the object as JSON-writeable format """
         return { "path": str(self.path.expanduser().absolute()), "name": self.name }
 
 
 class FileViewerContext(Protocol):
+    """Context as forward-declaration for FileViewer"""
+
     def select_entry(self, i: int, flip: bool = True):
         ...
 
@@ -66,30 +67,41 @@ class FileViewerModeType(IntEnum):
     Normal      = 0
     Select      = 1
     Command     = 2     # TODO: do we need this?
-    Filter      = 3     # TODO: implement?
+    Filter      = 3
 
 
 class FileViewerMode:
+    """
+    Base class for File viewer modes. Exposes functionality for entering, exiting
+    and processing as well as drawing within this mode.
+    :ivar parent   :    FileViewer owning this mode
+    :ivar mode_type:    FileViewerModeType describing this mode
+    """
+
     def __init__(self, parent: FileViewerContext, mode_type: FileViewerModeType):
         self.parent     : FileViewerContext     = parent
         self.mode_type  : FileViewerModeType    = mode_type
 
     def enter(self):
+        """Called when entering this mode"""
         pass
 
     def exit(self):
+        """Called when exiting this mode"""
         pass
 
     def exec(self, cmd: int) -> bool:
         """
+        Called on every input while this mode is active
+        :param cmd: First input caught from the user
         :returns:   True, if the input was handled by exec, otherwise return
                     False to indicate that `cmd` should be compared to
                     registered FileViewerCommands of `parent`
-                  
         """
         return False
 
     def draw(self, window: curses.window):
+        """Called after drawing windows while this mode is active"""
         pass
 
 

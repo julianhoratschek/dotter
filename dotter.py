@@ -146,6 +146,7 @@ class Dotter:
         self.__read_cwd()
         viewer.refresh()
 
+        # Move cursor to line of left directory
         for i, p in enumerate(self.__dir_list):
             if old_cwd == p.path:
                 break
@@ -214,7 +215,8 @@ class Dotter:
 
         if not yesno_prompt(viewer.window,
             "Clean Database and move unlinked\n"+
-            "files to DB_DIR/dots/remove?"):
+            "files to\n" + 
+            f"{self.__db_dir}/remove?"):
             return
 
         # Remove entries from __file_list without corresponding source files
@@ -235,7 +237,7 @@ class Dotter:
 
         self.__save_json()
 
-        viewer.note(f"Moved {moved_files} to DB_DIR/dots/remove/")
+        viewer.note(f"Moved {moved_files} to {self.__db_dir}/remove/")
         viewer.refresh()
 
 
@@ -288,8 +290,9 @@ class Dotter:
 
         lst = list(filter(lambda e: e.selected, self.__file_list))
         if not yesno_prompt(viewer.window,
-            f"Move {len(lst)} files to DB_DIR/dots/remove/ and remove\n" +
-            "them from the database?"):
+            f"Move {len(lst)} files to\n"+
+            f"{self.__db_dir}/remove/\n"+
+            "and remove them from the database?"):
             return
 
         for entry in lst:
@@ -302,7 +305,7 @@ class Dotter:
         self.__save_json()
 
         viewer.refresh()
-        viewer.note("Moved files to DB_DIR/dots/remove/")
+        viewer.note(f"Moved files to {self.__db_dir}/remove/")
 
 
     def edit_selection(self, viewer: FileViewer):
@@ -315,7 +318,6 @@ class Dotter:
         # TODO: As Command
 
         new_name = prompt(viewer.window, "New User: ")
-        new_name = None
         if not new_name:
             return
 
@@ -345,8 +347,13 @@ class Dotter:
 
 
     def main_view(self):
-        """ListView and Filebrowser for the cwd"""
+        """
+        File-Explorer like window.
+        Here, directories can be searched, files can be selected and added
+        to the database
+        """
 
+        # Display whether a file is already in the database or not
         def dict_print(viewer: FileViewer, entry: FileEntry, i: int, /, **kwargs):
             icon = "󰃁 " if self.__is_registered(entry) else "  "
             FileViewer.default_print(viewer, entry, i, prepend_icon=icon)
@@ -355,6 +362,7 @@ class Dotter:
 
         dir_viewer.add_command('l', self.enter_dir,
                                modes={FileViewerModeType.Normal})
+
         dir_viewer.add_command('h', self.dir_up,
                                modes={FileViewerModeType.Normal})
 
@@ -373,20 +381,28 @@ class Dotter:
         dir_viewer.show(dict_print)
 
 
-    def list_view(self, viewer: FileViewer):
-        """ListView of all registered files"""
+    def list_view(self, _: FileViewer):
+        """
+        Opens a new window with a list of all registered files.
+        Here, the database can be edited, files can be restored,
+        deleted, edited or setup on a system
+        """
 
         window = self.__window.subwin(0, 0)
         file_viewer = FileViewer("Registered Files", self.__file_list, window)
 
         file_viewer.add_command('r', self.restore_selection,
                                 modes={FileViewerModeType.Normal})
+
         file_viewer.add_command('d', self.delete_selection,
                                 modes={FileViewerModeType.Normal})
+
         file_viewer.add_command('e', self.edit_selection,
                                 modes={FileViewerModeType.Normal})
+
         file_viewer.add_command('s', self.setup_selection,
                                 modes={FileViewerModeType.Normal})
+
         file_viewer.add_command('cl', self.cleanup_list,
                                 modes={FileViewerModeType.Normal})
 

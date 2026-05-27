@@ -17,10 +17,12 @@ class ViewerCommand:
     """
     Describes a callback and help text for a custom command for FileViewer
 
-    :ivar callback:     CommandCallback     Callback for this command in form
-                                            (FileViewer) -> None
-    :ivar help_text:    str                 Text to display as help for this
-                                            Command
+    :ivar callback :    Callback for this command in form
+                        (FileViewer) -> None
+    :ivar help_text:    Text to display as help for this
+                        Command
+    :ivar modes    :    Modes this command should be active in
+
     """
 
     def __init__(self, callback: CommandCallback, help_text: str, modes: set[FileViewerModeType]):
@@ -34,26 +36,31 @@ class FileViewer:
     Display files and enables user to traverse lists with vim-like key bindings
     Highly extendable via commands
 
-    :ivar __window           : curses.window     Main window to display files
+    :ivar name             :    Name to display for this viewer
+    :ivar view_list        :    List displayed in the viewer. Can be reset with
+                                `viewer.refresh()`
 
-    :ivar __list_pad_height  : int               nlines of __window used to display files
-    :ivar __list_pad_width   : int               ncols of __window used to displa files
-    :ivar list_pad           : curses.window     Window to show and scroll file list
+    :ivar __window         :    Main curses window to draw UI
 
-    :ivar cur_line           : int               Current line (cursor)
-    :ivar selection_start    : int               In Selection-Mode: Start of Selection
-    :ivar list_pad_top       : int               Topmost displayed line of list_pad
-    :ivar mode               : FileViewerMode    Mode of Viewer (Normal, Select, Filter, Command)
+    :ivar __list_pad_height:    Height of file list display
+    :ivar __list_pad_width :    Width of file list display
+    :ivar __list_pad       :    curses window for file list display
 
-    :ivar __file_list        : FileList          Pointer to list to display (no copy)
-    :ivar __view_list        : FileList          Actual (e.g. filtered) list displayed
-    :ivar commands           :                   List of commands and callbacks
-    :ivar name               : str               Name of the Viewer (for display only)
+    :ivar __file_list      :    Pointer to external file-list, default for `view_list`
 
-    :ivar __running          : bool              If False, Viewer will quit
-    :ivar __help_line        : str               Line to display beneath filelist
-    :ivar __note             : str               Note to display for one cycle
-    :ivar __warning          : str               Warning to display for one cycle
+    :ivar __cur_line       :    Current line in file list display
+    :ivar __list_pad_top   :    Internal use: Top line of `__list_pad` to display
+
+    :ivar __current_mode   :    Currently active editor mode
+    :ivar __modes          :    Dictionary of registered modes
+
+    :ivar __commands       :    Dictionary of registered user commands. Can be
+                                extended by `add_command`
+
+    :ivar __running        :    Internal use: Controls main Loop
+    :ivar __help_line      :    Line to display at the bottom of the viewer
+    :ivar __note           :    Note to display
+    :ivar __warning        :    Warning to display
     """
 
     # TODO: Notification system?
@@ -62,9 +69,12 @@ class FileViewer:
     def default_print(viewer: FileViewer, entry: FileEntry, i: int, /, **kwargs):
         """
         Default per-line printing for entries in the current list
-        :ivar viewer    :   FileViewer  The calling instance of FileViewer
-        :ivar entry     :   FileEntry   The current entry of the list
-        :ivar i         :   int         The ID (position) of entry (zero based)
+
+        :param viewer:  The calling instance of FileViewer
+        :param entry :  The current entry of the list
+        :param i     :  The ID (position) of entry (zero based)
+        :param kwargs:  Further optional arguments:
+                        prepend_icon: Icon to display before line
         """
 
         # Pad is the area to display files
@@ -95,7 +105,6 @@ class FileViewer:
         pad.addstr(f"{arrl} {icon} {sel_str} {i:3d} {entry.path} {arrr}")
         pad.attroff(curses.color_pair(Colors.Directory) |
                     curses.color_pair(Colors.Selected))
-
 
     def __draw_window(self):
         """Structuring method to draw everything but the list"""
@@ -131,28 +140,56 @@ class FileViewer:
         win.attroff(curses.color_pair(Colors.Help))
         win.noutrefresh()
 
+    def __exec_user_commands(self, cmd: int) -> bool:
+        """
+        Looks for commands defined by add_command for the currently active
+        mode and executes them.
+        :param cmd  :   int     First keypress of the user
+        :returns    :   bool    True if a command was found, False otherwise
+        """
+
+        cmd_list = [
+            k for k, e in self.__commands.items()
+            if self.__current_mode in e.modes]
+
+        inp = chr(cmd)
+
+        while True:
+            cmd_list = list(filter(lambda c: c.startswith(inp), cmd_list))
+            if len(cmd_list) < 2:
+                break
+            cmd = self.__window.getch()
+            inp += chr(cmd)
+
+        if cmd_list:
+            self.__commands[cmd_list[0]].callback(self)
+            return True
+
+        return False
 
     def __init__(self, viewer_name: str, file_list: FileList, main_window: curses.window):
+        self.name               : str               = viewer_name
+
         self.__window           : curses.window     = main_window.derwin(2, 0)
+
         h, w = self.__window.getmaxyx()
 
         self.__list_pad_height  : int               = h - 11 
         self.__list_pad_width   : int               = w
-        self.__list_pad           : curses.window     = curses.newpad(1024, self.__list_pad_width)
+        self.__list_pad         : curses.window     = curses.newpad(1024, self.__list_pad_width)
 
         self.__file_list        : FileList          = file_list
-        self.view_list        : FileList          = file_list
+        self.view_list          : FileList          = file_list
 
-        self.__cur_line           : int               = 0
-        self.__list_pad_top       : int               = 0
-        self.__current_mode       : FileViewerModeType = FileViewerModeType.Normal
+        self.__cur_line         : int               = 0
+        self.__list_pad_top     : int               = 0
+        self.__current_mode     : FileViewerModeType = FileViewerModeType.Normal
         self.__modes            : dict[FileViewerModeType, FileViewerMode] = {
             FileViewerModeType.Normal: NormalMode(self),
             FileViewerModeType.Select: SelectMode(self),
             FileViewerModeType.Filter: FilterMode(self) }
 
-        self.__commands           : dict[str, ViewerCommand] = {}
-        self.name               : str               = viewer_name
+        self.__commands         : dict[str, ViewerCommand] = {}
 
         self.__running          : bool              = True
         self.__help_line        : str               = ""
@@ -161,18 +198,21 @@ class FileViewer:
 
         self.add_command('j',FileViewer.line_down,
                          modes={FileViewerModeType.Normal, FileViewerModeType.Select})
+
         self.add_command('k', FileViewer.line_up,
                          modes={FileViewerModeType.Normal, FileViewerModeType.Select})
+
         self.add_command(["gg", "g0"], FileViewer.goto_top,
                          modes={FileViewerModeType.Normal, FileViewerModeType.Select})
+
         self.add_command('G', FileViewer.goto_bottom,
                          modes={FileViewerModeType.Normal, FileViewerModeType.Select})
+
         self.add_command('v', FileViewer.toggle_select_mode,
                          modes={FileViewerModeType.Normal, FileViewerModeType.Select})
 
         self.add_command('q', FileViewer.quit_view,
             """Quits this viewer and returns either to the last Viewer or the shell""")
-
 
     @property
     def file_list(self) -> FileList:
@@ -200,7 +240,6 @@ class FileViewer:
         if value < self.__list_pad_top \
         or value > self.__list_pad_top + self.__list_pad_height:
             self.__list_pad_top = value
-    
 
     @property
     def current_entry(self) -> FileEntry:
@@ -211,7 +250,6 @@ class FileViewer:
     def mode(self) -> FileViewerMode:
         return self.__modes[self.__current_mode]
 
-
     def line_down(self):
         """Moves cursor one line down, scrolls window if necessary"""
         if self.__cur_line < len(self.view_list) - 1:
@@ -219,7 +257,6 @@ class FileViewer:
 
         if self.__cur_line - self.__list_pad_top >= self.__list_pad_height:
             self.__list_pad_top += 1
-
 
     def line_up(self):
         """Moves cursor up one line, scrolls window if necessary"""
@@ -229,12 +266,10 @@ class FileViewer:
         if self.__cur_line < self.__list_pad_top:
             self.__list_pad_top -= 1
 
-
     def goto_top(self):
         """Move cursor to the top of the list"""
         self.__cur_line = 0
         self.__list_pad_top = 0
-
 
     def goto_bottom(self):
         """Move cursor to the bottom of the list"""
@@ -243,24 +278,27 @@ class FileViewer:
         if self.__list_pad_top < 0:
             self.__list_pad_top = 0
 
-
     def toggle_select_mode(self):
+        """Enter or exit select mode"""
         new_mode = FileViewerModeType.Select
         if self.__current_mode == FileViewerModeType.Select:
             new_mode = FileViewerModeType.Normal
         self.set_mode(new_mode)
 
-
-    def add_command(
-        self, cmd: str | list[str],
-        callback: CommandCallback,
-        help_text: str = "",
-        modes: set[FileViewerModeType] | None = None ):
-        """Add a command-callback to this FileViewer, registering one or multiple
+    def add_command(self, cmd: str | list[str],
+                    callback: CommandCallback,
+                    help_text: str = "",
+                    modes: set[FileViewerModeType] | None = None ):
+        """
+        Add a command-callback to this FileViewer, registering one or multiple
         shortcuts for it.
-        :param cmd      :   str | list[str]     String or list of Strings as keyboard shortcuts
-        :param callback :   CommandCallback     Method to call when the shortcut is pressed
-        :param help_text:   str                 Optional, text to display for help screen
+
+        :param cmd      :   String or list of Strings as keyboard shortcuts
+        :param callback :   Method to call when the shortcut is pressed
+        :param help_text:   Optional, text to display for help screen
+        :param modes    :   Set of modes this command should be
+                            activated for. If left empty, command will be active
+                            for all modes.
         """
 
         if not isinstance(cmd, list):
@@ -272,18 +310,19 @@ class FileViewer:
                 FileViewerModeType.Select,
                 FileViewerModeType.Filter})
 
-
     def set_help_line(self, line: str):
         """Displays a textline beneath the list"""
         self.__help_line = line.rstrip() + "\n"
 
-
     def select_entry(self, i: int, flip: bool = True):
-        """Selects entry with index `i` in the list, if `flip` is false, it will
+        """
+        Selects entry with index `i` in the list, if `flip` is false, it will
         only be selected, otherwise selection will be toggled.
+
         :param i    :   int     Index of the entry in the file list
         :param flip :   bool    (Optional) whether to toggle selection (default: True)
         """
+
         if i < 0 or i >= len(self.view_list):
             return
         e = self.view_list[i]
@@ -291,31 +330,16 @@ class FileViewer:
             return
         e.selected = not e.selected if flip else True
 
-
-    def __exec_user_commands(self, cmd: int) -> bool:
-        cmd_list = [
-            k for k, e in self.__commands.items()
-            if self.__current_mode in e.modes]
-        inp = chr(cmd)
-        while True:
-            cmd_list = list(filter(lambda c: c.startswith(inp), cmd_list))
-            if len(cmd_list) < 2:
-                break
-            cmd = self.__window.getch()
-            inp += chr(cmd)
-
-        if cmd_list:
-            self.__commands[cmd_list[0]].callback(self)
-            return True
-
-        return False
-
-
     def set_mode(self, new_mode: FileViewerModeType):
+        """
+        Sets the mode of FileViewer to `new_mode`. Calls exit-method of the old
+        mode and enter-method of the new mode.
+        :param new_mode:    FileViewerModeType  New Mode to enter
+        """
+
         self.mode.exit()
         self.__current_mode = new_mode
         self.mode.enter()
-
 
     def show(self, print_callback: PrintCallback = default_print):
         """
@@ -348,23 +372,17 @@ class FileViewer:
             processed = self.mode.exec(cmd)
 
             if not processed and not self.__exec_user_commands(cmd):
-                # TODO: Do anything here??
-                pass
-
+                # Do anything here?
+                ...
 
     def quit_view(self):
         self.__running = False
 
-
     def note(self, msg: str):
         self.__note = msg
 
-
     def warn(self, msg: str):
         self.__warning = msg
-
-
-
 
     def refresh(self):
         """Reset displayed list to original list"""
