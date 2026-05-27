@@ -15,32 +15,15 @@ class Colors(IntEnum):
     HelpShort   = 6
     PreSelect   = 7
 
-    @override
-    def __str__(self) -> str:
-        match self:
-            case Colors.Directory:
-                return "Directory"
-            case Colors.Selected:
-                return "Selected"
-            case Colors.Warning:
-                return "Warning"
-            case Colors.Note:
-                return "Note"
-            case Colors.Help:
-                return "Help"
-            case Colors.HelpShort:
-                return "HelpShort"
-            case Colors.PreSelect:
-                return "PreSelect"
 
 ColorDefaults: dict[Colors, list[int]] = {
-	Colors.Directory: [105, -1],
-	Colors.Selected: [-1,  34],
-	Colors.Warning: [124, -1],
-	Colors.Note: [220, -1],
-	Colors.Help: [-1,  240],
+	Colors.Directory: [105,  -1],
+	Colors.Selected : [ -1,  34],
+	Colors.Warning  : [124,  -1],
+	Colors.Note     : [220,  -1],
+	Colors.Help     : [ -1, 240],
 	Colors.HelpShort: [105, 240],
-	Colors.PreSelect: [-1,  34]
+	Colors.PreSelect: [ -1,  34]
 }
 
 
@@ -64,6 +47,8 @@ class ViewerTheme:
             ViewerTheme.InitDone = True
 
         theme_data: dict[str, list[int]] = {}
+
+        # Load user theme if defined
         if theme_file and (theme_file := Path(theme_file)).exists():
             with theme_file.open("rb") as fl:
                 try:
@@ -72,8 +57,9 @@ class ViewerTheme:
                     # TODO: handle
                     pass
 
+        # Setup colors
         for cl, vals in ColorDefaults.items():
-            name = str(cl)
+            name = cl.name
 
             try:
                 if name in theme_data and len(theme_data[name]) == 2:
