@@ -89,7 +89,8 @@ Pressing `a` with files selected will add them to Dotter's internal database. Th
 * If a file is already registered, no action is taken.
 * If a file is registered but its state has drifted (e.g., it is no longer a symlink, or it points elsewhere), the existing file in the database is safely moved to `~/.cache/dotter/dots/remove/`, and the new file takes its place.
 
-> ⚠️ **Note:** Dotter does not support adding raw directories. You must select and add individual files.
+> [!NOTE]
+>  Dotter does not support adding raw directories. You must select and add individual files.
 
 #### Traversing Directories
 
@@ -133,5 +134,9 @@ This process is entirely non-destructive—your original files and entries remai
 
 Pressing `s` deploys the selected dotfiles onto your current system.
 
-> ⚠️ **Warning:** Symlinks will be created **exactly** at the literal paths stored in the database. The operation will fail if you lack the necessary write permissions or if the paths reference a non-existent home directory.
-> Dotter **will not** overwrite existing files. If a file already occupies a path where Dotter attempts to drop a symlink, that file is skipped. Please back up and clear conflicting files before running this command.
+> [!WARNING]
+> Symlinks will be created **exactly** at the literal paths stored in the database.
+
+The operation will fail if you lack the necessary write permissions or if the paths reference a non-existent home directory.
+
+Dotter **will not** overwrite existing files. If a file already occupies a path where Dotter attempts to drop a symlink, that file is skipped. Please back up and clear conflicting files before running this command.
