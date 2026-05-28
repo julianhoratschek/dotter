@@ -393,6 +393,9 @@ class Dotter:
                                 help_text="clean db",
                                 modes={FileViewerModeType.Normal})
 
+        file_viewer.add_command('t', FileViewer.quit_view,
+                                help_text="back")
+
         file_viewer.show()
         del window
 

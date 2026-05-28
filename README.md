@@ -53,15 +53,21 @@ The arrays represent [ANSI Escape Colors](https://gist.github.com/fnky/458719343
 
 Dotter utilizes Vim-like keybindings and modal navigation where applicable. The following commands are globally accessible:
 
-| Key | Description | Modes |
-| --- | --- | --- |
-| `gg`, `g0` | Move to the top of the list | Normal, Select |
-| `G` | Move to the bottom of the list | Normal, Select |
-| `j` | Move one line down | Normal, Select |
-| `k` | Move one line up | Normal, Select |
-| `q` | Quit the application | Normal, Select |
-| `v` | Enter / Exit Select Mode | Normal, Select |
-| `/` | Enter Filter Mode | Normal, Select |
+| Key        | Description                    | Modes          |
+| ---------- | ------------------------------ | -------------- |
+| `gg`, `g0` | Move to the top of the list    | Normal, Select |
+| `G`        | Move to the bottom of the list | Normal, Select |
+| `j`        | Move one line down             | Normal, Select |
+| `k`        | Move one line up               | Normal, Select |
+| `q`        | Quit the application           | Normal, Select |
+| `v`        | Enter / Exit Select Mode       | Normal, Select |
+| `/`, `f`   | Enter Filter Mode              | Normal, Select |
+| `x`        | Reset Filter                   | Normal, Select |
+
+#### Normal Mode
+
+Default Mode to navigate list and switch to other modes. Most of the time you can
+revert to normal mode by pressing `ESC`.
 
 #### Select Mode
 
@@ -104,13 +110,14 @@ Press `t` to open List Mode, which displays all registered files. From this view
 
 The Dotter View lists every registered file currently tracked in your database. From here, you can modify target paths, restore or remove files, and clean up your database. It is also the starting point for deploying your dotfiles onto a newly formatted system.
 
-| Key | Description |
-| --- | --- |
+| Key        | Description                       |
+| ---------- | --------------------------------- |
 | `cl`, `cc` | [Clean Database](#clean-database) |
-| `r` | [Restore files](#restore-files) |
-| `d` | [Delete files](#delete-files) |
-| `eh` | [Edit Home Path](#edit-home-path) |
-| `s` | [Setup Files](#setup-files) |
+| `r`        | [Restore files](#restore-files)   |
+| `d`        | [Delete files](#delete-files)     |
+| `eh`       | [Edit Home Path](#edit-home-path) |
+| `s`        | [Setup Files](#setup-files)       |
+| `t`        | Go back to File Browser           |
 
 #### Clean Database
 
