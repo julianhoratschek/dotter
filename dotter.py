@@ -36,6 +36,7 @@ class Dotter:
 
     def __load_db(self) -> FileList:
         """Loads FileList from JSON database"""
+
         if not self.__db_file.exists():
             return []
 
@@ -47,6 +48,7 @@ class Dotter:
 
     def __save_json(self):
         """Saves current file list to JSON database"""
+
         data = { 
             "files": [entry.to_dict() for entry in self.__file_list] }
 
@@ -164,7 +166,6 @@ class Dotter:
             dir_entry.selected = False
 
             if dir_entry.path.is_dir():
-                viewer.note(f"Directories will not be processed, please select files individually")
                 continue
 
             # This sets name for dir_entry
@@ -174,8 +175,6 @@ class Dotter:
             dest = self.__db_dir / dir_entry.name
 
             if already_registered:
-                viewer.warn("Some files may have been moved to DB_DIR/dots/remove, as they were already registered")
-
                 if source.is_symlink():
                     source = source.resolve().absolute()
                     if source == dest:
@@ -192,7 +191,6 @@ class Dotter:
         self.__file_list.sort(key=attrgetter("path"))
         self.__save_json()
 
-        viewer.note("Added files")
         viewer.refresh()
 
     def cleanup_list(self, viewer: FileViewer):
@@ -228,7 +226,6 @@ class Dotter:
 
         self.__save_json()
 
-        viewer.note(f"Moved {moved_files} to {self.__db_dir}/remove/")
         viewer.refresh()
 
     def restore_selection(self, viewer: FileViewer):
@@ -249,12 +246,10 @@ class Dotter:
             dest = entry.path
 
             if not source.exists():
-                viewer.warn("Some source files could not be found, removed entries from database")
                 continue
 
             if dest.exists():
                 if not dest.is_symlink() or dest.resolve() != source:
-                    viewer.note("Some files were not restored, as the destination appeared to link to/be different files")
                     entry.selected = False
                     continue
                 dest.unlink()
@@ -268,7 +263,6 @@ class Dotter:
 
         self.__save_json()
 
-        viewer.note("Restored files")
         viewer.refresh()
 
     def delete_selection(self, viewer: FileViewer):
@@ -299,7 +293,6 @@ class Dotter:
         self.__save_json()
 
         viewer.refresh()
-        viewer.note(f"Moved files to {self.__db_dir}/remove/")
 
     def edit_selection(self, viewer: FileViewer):
         """
@@ -353,22 +346,20 @@ class Dotter:
         dir_viewer = FileViewer("Filesystem", self.__dir_list, self.__window)
 
         dir_viewer.add_command('l', self.enter_dir,
+                               help_text="enter dir",
                                modes={FileViewerModeType.Normal})
 
         dir_viewer.add_command('h', self.dir_up,
+                               help_text="parent dir",
                                modes={FileViewerModeType.Normal})
 
         dir_viewer.add_command('a', self.add_selection,
+                               help_text="add files",
                                modes={FileViewerModeType.Normal})
 
         dir_viewer.add_command('t', self.list_view,
+                               help_text="list files",
                                modes={FileViewerModeType.Normal})
-
-        dir_viewer.set_help_line(
-            "l -> enter dir; " +
-            "h -> dir up; " +
-            "a -> add selection; " +
-            "t -> show registered files; ")
 
         dir_viewer.show(dict_print)
 
@@ -383,29 +374,30 @@ class Dotter:
         file_viewer = FileViewer("Registered Files", self.__file_list, window)
 
         file_viewer.add_command('r', self.restore_selection,
+                                help_text="restore",
                                 modes={FileViewerModeType.Normal})
 
         file_viewer.add_command('d', self.delete_selection,
+                                help_text="delete",
                                 modes={FileViewerModeType.Normal})
 
         file_viewer.add_command('eh', self.edit_selection,
+                                help_text="edit home dir",
                                 modes={FileViewerModeType.Normal})
 
         file_viewer.add_command('s', self.setup_selection,
+                                help_text="setup",
                                 modes={FileViewerModeType.Normal})
 
         file_viewer.add_command(['cl', 'cc'], self.cleanup_list,
+                                help_text="clean db",
                                 modes={FileViewerModeType.Normal})
-
-        file_viewer.set_help_line(
-            "r -> restore selection; " +
-            "eh -> edit home path; " +
-            "d -> delete selection; " +
-            "s -> Setup selection; " +
-            "cl -> clean database; ")
 
         file_viewer.show()
         del window
+
+        for e in self.__file_list:
+            e.selected = False
 
     def setup_selection(self, viewer: FileViewer):
         """
@@ -429,14 +421,10 @@ class Dotter:
             dest = entry.path
 
             if not source.exists():
-                viewer.warn("Some source files were not found")
                 continue
 
             if dest.exists():
-                viewer.note("Some files already existed and were skipped")
                 continue
 
             dest.parent.mkdir(exist_ok=True, parents=True)
             dest.symlink_to(source)
-
-        viewer.note("Files setup")
