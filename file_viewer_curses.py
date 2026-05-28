@@ -114,31 +114,32 @@ class FileViewer:
         win.erase()
         win.hline(0, 2, '-', 60)
         win.addstr(1, 2, self.name, curses.A_BOLD)
+
         win.hline(4 + self.__list_pad_height, 2, '-', 60)
 
-        if self.__warning:
-            win.addstr(5 + self.__list_pad_height, 2, "!! ", curses.color_pair(Colors.Warning))
-            win.addstr(self.__warning)
-            self.__warning = ""
+        # if self.__warning:
+        #     win.addstr(5 + self.__list_pad_height, 2, "!! ", curses.color_pair(Colors.Warning))
+        #     win.addstr(self.__warning)
+        #     self.__warning = ""
+        #
+        # if self.__note:
+        #     win.addstr(6 + self.__list_pad_height, 2, "󱞁 ", curses.color_pair(Colors.Note))
+        #     win.addstr(self.__note)
+        #     self.__note = ""
 
-        if self.__note:
-            win.addstr(6 + self.__list_pad_height, 2, "󱞁 ", curses.color_pair(Colors.Note))
-            win.addstr(self.__note)
-            self.__note = ""
-
-        win.addstr(7 + self.__list_pad_height, 2, "***Commands***", curses.A_BOLD)
+        win.addstr(5 + self.__list_pad_height, 2, "***Commands***", curses.A_BOLD)
         win.attron(curses.color_pair(Colors.Help))
         # TODO only display mode valid commands
-        win.addstr(8 + self.__list_pad_height, 2,
+        win.addstr(6 + self.__list_pad_height, 2,
                            "q -> quit viewer; j/k -> move up/down; "+
                            "v -> select; " +
                            "/ -> filter; " +
                            ": -> enter command")
 
-        win.addstr(9 + self.__list_pad_height, 2,
+        win.addstr(7 + self.__list_pad_height, 2,
                            self.__help_line.rstrip())
         win.attroff(curses.color_pair(Colors.Help))
-        win.noutrefresh()
+        # win.noutrefresh()
 
     def __exec_user_commands(self, cmd: int) -> bool:
         """
@@ -361,10 +362,14 @@ class FileViewer:
                 self.__list_pad.move(i, 0)
                 print_callback(self, entry, i)
 
-            self.mode.draw(self.window)
+            self.mode.draw_pad(self.__list_pad)
+
+            self.__window.noutrefresh()
 
             self.__list_pad.noutrefresh(
                 self.__list_pad_top, 0, 5, 0, 5 + self.__list_pad_height, self.__list_pad_width)
+
+            self.mode.draw(self.window)
 
             curses.doupdate()
 

@@ -45,6 +45,10 @@ class FileViewerContext(Protocol):
     def cur_line(self) -> int:
         ...
 
+    @cur_line.setter
+    def cur_line(self, value: int):
+        ...
+
     @property
     def file_list(self) -> list[FileEntry]:
         ...
@@ -104,6 +108,10 @@ class FileViewerMode:
         """Called after drawing windows while this mode is active"""
         pass
 
+    def draw_pad(self, pad: curses.window):
+        """Called after drawing but before refreshing the list pad"""
+        pass
+
 
 class NormalMode(FileViewerMode):
     def __init__(self, parent: FileViewerContext):
@@ -159,9 +167,9 @@ class SelectMode(FileViewerMode):
 
 
     @override
-    def draw(self, window: curses.window):
+    def draw_pad(self, pad: curses.window):
         # Draw preselect-bar
-        pad = self.parent.list_pad
+        # pad = self.parent.list_pad
         for y in fliprange(self.selection_start, self.parent.cur_line):
             pad.addch(y, 1, ' ', curses.color_pair(Colors.PreSelect))
 
@@ -170,8 +178,10 @@ class FilterMode(FileViewerMode):
     def __init__(self, parent: FileViewerContext):
         super().__init__(parent, FileViewerModeType.Filter)
 
-        self.filter_string  : str                   = ""
-        self.overlay_win    : curses.window | None  = None
+        y, x = self.parent.window.getmaxyx()
+
+        self.filter_string  : str           = ""
+        self.overlay_win    : curses.window = curses.newwin(3, x, y - 3, 2)
 
 
     @override
@@ -180,8 +190,9 @@ class FilterMode(FileViewerMode):
         curses.curs_set(1)
 
         y, x = self.parent.window.getmaxyx()
-        self.overlay_win = self.parent.window.derwin(3, x - 4, y - 3, 2)
-        self.overlay_win.move(1, 2)
+        del self.overlay_win
+
+        self.overlay_win = curses.newwin(3, x, y - 3, 2)
 
         return super().enter()
 
@@ -191,12 +202,13 @@ class FilterMode(FileViewerMode):
         curses.curs_set(0)
 
         del self.overlay_win
-        self.overlay_win = None
 
         return super().exit()
 
     @override
     def exec(self, cmd: int) -> bool:
+        self.parent.cur_line = 0
+
         # ENTER, SPACE, ESC
         if cmd in (10, 13, curses.KEY_ENTER) or cmd == 32 or cmd == 27:
             self.parent.set_mode(FileViewerModeType.Normal)
@@ -222,18 +234,15 @@ class FilterMode(FileViewerMode):
 
     @override
     def draw(self, window: curses.window):
-        if not self.overlay_win:
-            return
-
         # window.addstr(2, 4, f"Filter: {self.filter_string}")
         #
         self.overlay_win.erase()
         self.overlay_win.bkgd(' ', curses.color_pair(Colors.Help))
         self.overlay_win.box()
-        # self.overlay_win.overwrite(self.parent.window)
 
         self.overlay_win.addstr(1, 2, '/ ', curses.color_pair(Colors.HelpShort))
         self.overlay_win.addstr(self.filter_string)
+        self.overlay_win.move(1, 3 + len(self.filter_string))
 
         self.overlay_win.noutrefresh()
 
