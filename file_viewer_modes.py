@@ -72,9 +72,11 @@ class FileViewerMode:
     :ivar mode_type:    FileViewerModeType describing this mode
     """
 
-    def __init__(self, parent: FileViewerContext, mode_type: FileViewerModeType):
+    def __init__(self, parent: FileViewerContext,
+                 mode_type: FileViewerModeType, color: Colors):
         self.parent     : FileViewerContext     = parent
         self.mode_type  : FileViewerModeType    = mode_type
+        self.color      : Colors                = color
 
     def enter(self):
         """Called when entering this mode"""
@@ -105,7 +107,8 @@ class FileViewerMode:
 
 class NormalMode(FileViewerMode):
     def __init__(self, parent: FileViewerContext):
-        super().__init__(parent, FileViewerModeType.Normal)
+        super().__init__(parent, FileViewerModeType.Normal,
+                         Colors.NormalMod)
 
     @override
     def exec(self, cmd: int) -> bool:
@@ -120,7 +123,8 @@ class NormalMode(FileViewerMode):
 
 class SelectMode(FileViewerMode):
     def __init__(self, parent: FileViewerContext):
-        super().__init__(parent, FileViewerModeType.Select)
+        super().__init__(parent, FileViewerModeType.Select,
+                         Colors.VisualMod)
 
         self.selection_start: int = 0
 
@@ -150,7 +154,8 @@ class SelectMode(FileViewerMode):
 
 class FilterMode(FileViewerMode):
     def __init__(self, parent: FileViewerContext):
-        super().__init__(parent, FileViewerModeType.Filter)
+        super().__init__(parent, FileViewerModeType.Filter,
+                         Colors.FilterMod)
 
         y, x = self.parent.window.getmaxyx()
 

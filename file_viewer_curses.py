@@ -119,11 +119,15 @@ class FileViewer:
         win.hline(0, 2, '-', 60)
         win.addstr(1, 2, self.name, curses.A_BOLD)
 
+        if (s := self.__modes[FileViewerModeType.Filter].filter_string):
+            win.addstr(2, 4, f"Filter: {s}")
+
         win.hline(4 + self.__list_pad_height, 2, '-', 60)
 
         win.addstr(5 + self.__list_pad_height, 2,
-                   f"Mode: {self.__current_mode.name} | " +
-                   f"Selected: {len([e for e in self.__file_list if e.selected])}")
+                   f"Mode: {self.__current_mode.name}",
+                   curses.color_pair(self.mode.color))
+        win.addstr(f" | Selected: {len([e for e in self.__file_list if e.selected])}")
 
         win.addstr(6 + self.__list_pad_height, 2, "***Commands***", curses.A_BOLD)
         win.attron(curses.color_pair(Colors.Help))

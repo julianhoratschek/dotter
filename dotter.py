@@ -46,6 +46,7 @@ class Dotter:
         return [FileEntry(Path(file["path"]), file["name"])
                 for file in data["files"]]
 
+
     def __save_json(self):
         """Saves current file list to JSON database"""
 
@@ -55,6 +56,7 @@ class Dotter:
         self.__db_file.parent.mkdir(exist_ok=True, parents=True)
         with self.__db_file.open("w+") as fl:
             json.dump(data, fl)
+
 
     def __is_registered(self, entry: FileEntry) -> bool:
         """
@@ -73,6 +75,7 @@ class Dotter:
 
         return any(e.name == entry.name for e in self.__file_list)
 
+
     def __move_to_remove(self, entry: FileEntry):
         """Moves file from dotter/dots/ directory to dotter/dots/remove"""
 
@@ -87,6 +90,7 @@ class Dotter:
         new_location.parent.mkdir(parents=True, exist_ok=True)
         old_location.move(new_location)
 
+
     def __read_cwd(self):
         """Load content of cwd into __dir_list without changing instances"""
 
@@ -98,6 +102,7 @@ class Dotter:
         self.__dir_list.sort(key=attrgetter("path"))
         # Sort by dir/files
         self.__dir_list.sort(key=lambda x: x.path.is_dir(), reverse=True)
+
 
     def __init__(self, window: curses.window, db_file: Path, theme_file: str = ""):
         theme = ViewerTheme(theme_file)
@@ -115,6 +120,7 @@ class Dotter:
         self.__read_cwd()
         self.__db_dir.mkdir(exist_ok=True, parents=True)
 
+
     def enter_dir(self, viewer: FileViewer):
         """
         Set cwd to directory described by viewer.current_entry
@@ -129,6 +135,7 @@ class Dotter:
         viewer.refresh()
 
         viewer.cur_line = 0
+
 
     def dir_up(self, viewer: FileViewer):
         """
@@ -149,6 +156,7 @@ class Dotter:
             i = 0
 
         viewer.cur_line = i
+
 
     def add_selection(self, viewer: FileViewer):
         """
@@ -193,6 +201,7 @@ class Dotter:
 
         viewer.refresh()
 
+
     def cleanup_list(self, viewer: FileViewer):
         """
         Removes entries from database without corresponding source files
@@ -227,6 +236,7 @@ class Dotter:
         self.__save_json()
 
         viewer.refresh()
+
 
     def restore_selection(self, viewer: FileViewer):
         """
@@ -265,6 +275,7 @@ class Dotter:
 
         viewer.refresh()
 
+
     def delete_selection(self, viewer: FileViewer):
         """
         Move all selected files to DB/dots/remove/
@@ -293,6 +304,7 @@ class Dotter:
         self.__save_json()
 
         viewer.refresh()
+
 
     def edit_selection(self, viewer: FileViewer):
         """
@@ -331,6 +343,7 @@ class Dotter:
         self.__file_list.extend(extend_list)
         viewer.refresh()
 
+
     def main_view(self):
         """
         File-Explorer like window.
@@ -362,6 +375,7 @@ class Dotter:
                                modes={FileViewerModeType.Normal})
 
         dir_viewer.show(dict_print)
+
 
     def list_view(self, _: FileViewer):
         """
@@ -401,6 +415,7 @@ class Dotter:
 
         for e in self.__file_list:
             e.selected = False
+
 
     def setup_selection(self, viewer: FileViewer):
         """
