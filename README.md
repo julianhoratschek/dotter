@@ -42,6 +42,9 @@ Note      = [220,  -1]
 Help      = [ -1, 240]
 HelpShort = [105, 240]
 PreSelect = [ -1,  34]
+NormalMod = [ -1,  -1]
+VisualMod = [ -1, 124]
+FilterMod = [ -1,  34]
 
 ```
 
