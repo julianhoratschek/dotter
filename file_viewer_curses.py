@@ -135,7 +135,7 @@ class FileViewer:
         win.move(7 + self.__list_pad_height, 2)
 
         for cmd in filter(lambda x: x.help_text, self.__current_commands):
-            win.addstr(cmd.keys[0], curses.color_pair(Colors.HelpShort))
+            win.addstr(cmd.keys[0], curses.color_pair(Colors.Accent))
             win.addstr(f" -> {cmd.help_text}; ")
 
         win.attroff(curses.color_pair(Colors.Help))

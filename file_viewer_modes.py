@@ -213,7 +213,7 @@ class FilterMode(FileViewerMode):
         self.overlay_win.bkgd(' ', curses.color_pair(Colors.Help))
         self.overlay_win.box()
 
-        self.overlay_win.addstr(1, 2, '/', curses.color_pair(Colors.HelpShort))
+        self.overlay_win.addstr(1, 2, '/', curses.color_pair(Colors.Accent))
         self.overlay_win.addstr(self.filter_string)
         self.overlay_win.move(1, 3 + len(self.filter_string))
 

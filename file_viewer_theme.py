@@ -12,7 +12,7 @@ class Colors(IntEnum):
     Warning     = 3
     Note        = 4
     Help        = 5
-    HelpShort   = 6
+    Accent      = 6
     PreSelect   = 7
     NormalMod   = 8
     VisualMod   = 9
@@ -25,9 +25,9 @@ ColorDefaults: dict[Colors, list[int]] = {
 	Colors.Warning  : [124,  -1],
 	Colors.Note     : [220,  -1],
 	Colors.Help     : [ -1, 240],
-	Colors.HelpShort: [105, 240],
+	Colors.Accent   : [105, 240],
 	Colors.PreSelect: [ -1,  34],
-    Colors.NormalMod: [ -1,  -1],
+    Colors.NormalMod: [ -1, 240],
     Colors.VisualMod: [ -1, 124],
     Colors.FilterMod: [ -1,  34]
 }
