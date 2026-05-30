@@ -105,7 +105,8 @@ class Dotter:
 
 
     def __init__(self, window: curses.window, db_file: Path, theme_file: str = ""):
-        theme = ViewerTheme(theme_file)
+        self.__theme = ViewerTheme()
+        self.__theme.load(theme_file)
 
         self.__window   : curses.window = window
 

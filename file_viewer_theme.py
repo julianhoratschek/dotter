@@ -1,6 +1,5 @@
 from enum import IntEnum
 import curses
-from typing import override
 from pathlib import Path
 import tomllib
 
@@ -34,9 +33,15 @@ ColorDefaults: dict[Colors, list[int]] = {
 
 
 class ViewerTheme:
-    InitDone: bool = False
-
     def __init__(self, theme_file: Path | str = ""):
+        curses.curs_set(0)
+
+        curses.start_color()
+        curses.use_default_colors()
+
+
+    def load(self,
+             theme_file: Path | str = Path("~/.config/dotter/theme.toml")):
         """
         Loads defaults for FileViewer Theme or reads color data from `theme_file`
         if provided. Falls back to defaults, if `theme_file` is malformed or
@@ -44,13 +49,6 @@ class ViewerTheme:
         :ivar theme_file:   Path|str    Optional, Path to a toml-file providing
                                         the theme to display
         """
-
-        if not ViewerTheme.InitDone:
-            curses.curs_set(0)
-
-            curses.start_color()
-            curses.use_default_colors()
-            ViewerTheme.InitDone = True
 
         theme_data: dict[str, list[int]] = {}
 

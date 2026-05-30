@@ -41,9 +41,9 @@ def yesno_prompt(window: curses.window, msg: str) -> DialogResult:
     for i, line in enumerate(msg.splitlines()):
         win.addstr(2 + i, 2, line)
 
-    win.addch(8, 15, 'Y', curses.color_pair(Colors.HelpShort))
+    win.addch(8, 15, 'Y', curses.color_pair(Colors.Accent))
     win.addstr("es")
-    win.addch(8, 30, 'N', curses.color_pair(Colors.HelpShort))
+    win.addch(8, 30, 'N', curses.color_pair(Colors.Accent))
     win.addch('o')
     win.refresh()
 
