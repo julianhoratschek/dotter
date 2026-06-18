@@ -1,152 +1,235 @@
-# Dotter 🐔
+# Dotter
 
-## Intended Use 🛠️
+A pure Python TUI dotfile manager — zero external dependencies, vim-like navigation, and strictly non-destructive operations.
 
-Dotter is a pure Python TUI (Terminal User Interface) dotfile management application with zero external dependencies. 
+Dotter keeps all your dotfiles in one versioned directory and places symlinks at their original system paths. When you move to a new machine, point Dotter at your repo and deploy everything in seconds.
 
-The core philosophy is to keep all your dotfiles in a single location so that a version control system (like Git) can easily track them, while your system references them via symlinks at their original locations.
+---
 
-Furthermore, Dotter allows you to seamlessly back up and deploy your configurations across different machines by making it easy to adapt the home directory paths of your saved dotfiles.
+## Features
 
-Lastly, Dotter is built to be non-destructive. Even if you choose to remove a file from the database, it is never permanently deleted; instead, it is moved to a dedicated sub-folder for safe keeping and further inspection.
+- **Zero dependencies** — only the Python standard library (≥ 3.14) and curses
+- **Non-destructive** — files are never deleted; displaced entries move to a `remove/` staging folder
+- **Cross-machine deployment** — update username paths in bulk to deploy configs for a different user
+- **Vim-like navigation** — Normal, Select, and Filter modes
+- **Fully themeable** — override any color via a TOML file
+- **Regex filtering** — live filter the file list with Python regular expressions
 
-## Dependencies 📦
+---
 
-- Python >= 3.14
-- Nerd Fonts (Optional, for icon support)
+## Requirements
 
-## Command Line Parameters 📣
+| Requirement | Notes |
+|---|---|
+| Python ≥ 3.14 | Uses `Path.move()` and `tomllib` from stdlib |
+| Nerd Fonts | Optional — enables file-status icons in the browser |
 
-| Command | Full Command | Parameter | Description |
-| --- | --- | --- | --- |
-| `-d` | `--json-db` | `Path to json file` | Path to a custom JSON database file. |
-| `-t` | `--theme` | `Path to theme toml`| Path to a TOML file containing custom theme options. |
+---
 
-### JSON DB
+## Installation
 
-Dotter uses a simple JSON database format to track managed files and their target locations. If no custom database is specified, Dotter defaults to `~/.cache/dotter/db.json`.
+No install step is required. Clone the repo and run `main.py` directly:
 
-All dotfiles managed or read by Dotter are stored in `<path-to-json>/dots/`.
-
-### Custom Themes
-
-Dotter is fully customizable. You can apply a custom theme by passing the `-t` or `--theme` flag, which expects a [TOML file](https://toml.io/en/v1.1.0) containing some or all of the following color options:
-
-```toml
-# Default Values
-
-Directory = [105,  -1]
-Selected  = [ -1,  34]
-Warning   = [124,  -1]
-Note      = [220,  -1]
-Help      = [ -1, 240]
-HelpShort = [105, 240]
-PreSelect = [ -1,  34]
-NormalMod = [ -1,  -1]
-VisualMod = [ -1, 124]
-FilterMod = [ -1,  34]
-
+```sh
+git clone https://github.com/julianhoratschek/dotter.git
+cd dotter
+python main.py
 ```
 
-The arrays represent [ANSI Escape Colors](https://gist.github.com/fnky/458719343aabd01cfb17a3a4f7296797) formatted as `[foreground, background]`. Use `-1` to inherit your terminal's default colors.
+---
 
-## Commands ⌨️
+## Usage
 
-### General Commands 🌐
+```
+python main.py [-d <db.json>] [-t <theme.toml>]
+```
 
-Dotter utilizes Vim-like keybindings and modal navigation where applicable. The following commands are globally accessible:
+| Flag | Long form | Description |
+|---|---|---|
+| `-d PATH` | `--json-db` | Path to a custom JSON database file (default: `~/.cache/dotter/files.json`) |
+| `-t PATH` | `--theme` | Path to a TOML theme file (default: `~/.cache/dotter/theme.toml`) |
 
-| Key        | Description                    | Modes          |
-| ---------- | ------------------------------ | -------------- |
-| `gg`, `g0` | Move to the top of the list    | Normal, Select |
-| `G`        | Move to the bottom of the list | Normal, Select |
-| `j`        | Move one line down             | Normal, Select |
-| `k`        | Move one line up               | Normal, Select |
-| `q`        | Quit the application           | Normal, Select |
-| `v`        | Enter / Exit Select Mode       | Normal, Select |
-| `/`, `f`   | Enter Filter Mode              | Normal, Select |
-| `x`        | Reset Filter                   | Normal, Select |
+### Quick start
 
-#### Normal Mode
+```sh
+# Use the default database location
+python main.py
 
-Default Mode to navigate list and switch to other modes. Most of the time you can
-revert to normal mode by pressing `ESC`.
+# Use a custom database (e.g. inside your dotfiles repo)
+python main.py -d ~/dotfiles/db.json
 
-#### Select Mode
+# Apply a custom color theme
+python main.py -t ~/dotfiles/mytheme.toml
+```
 
-Press `v` to toggle Select Mode. In this mode, you can select multiple files simultaneously by moving the cursor over them. A visual highlighter indicates which files are queued. Upon exiting Select Mode (via `v` or `ESC`), the highlighted files will be formally selected.
+---
 
-#### Filter Mode
+## Storage layout
 
-Press `/` to enter Filter Mode, and `ESC` to exit. In this mode, you can type Python-style regular expressions to filter the visible list. The filter automatically resets when you change directories, or it can be manually cleared by leaving the filter prompt empty.
+Dotter stores everything relative to the database file location:
 
-### File Browser 📂
+```
+~/.cache/dotter/
+├── files.json          ← database (tracks path → md5-name mappings)
+└── dots/
+    ├── a3f8c2...       ← managed dotfile (named by md5 of original path)
+    ├── 9e1bd4...
+    └── remove/         ← staging area for displaced/deleted files
+        └── .config/
+            └── nvim/
+                └── init.lua
+```
 
-This is Dotter's main interface. Here, you can traverse directories, select files, and add them to your database.
+All managed files live inside `dots/`. Symlinks at their original paths point here. The `remove/` subdirectory is the non-destructive trash — nothing Dotter does permanently erases data.
 
-| Key | Description |
-| --- | --- |
-| `a` | [Add selected files to Dotter](#register-files) |
-| `h` | [Move to parent directory](#traversing-directories) |
-| `l` | [Enter selected directory](#traversing-directories) |
-| `t` | [Show and edit registered files](#list-registered-files) |
+---
 
-#### Register Files
+## Workflow
 
-Pressing `a` with files selected will add them to Dotter's internal database. The original file will be moved to `~/.cache/dotter/dots/`, and a symlink pointing to this new location will be generated at the file's original path.
+### 1. Add dotfiles
 
-* If a file is already registered, no action is taken.
-* If a file is registered but its state has drifted (e.g., it is no longer a symlink, or it points elsewhere), the existing file in the database is safely moved to `~/.cache/dotter/dots/remove/`, and the new file takes its place.
+Open Dotter and navigate to a config file. Select it and press `a`:
 
-> [!NOTE]
->  Dotter does not support adding raw directories. You must select and add individual files.
+```
+Dotter moves:  ~/.config/nvim/init.lua  →  ~/.cache/dotter/dots/9e1bd4...
+Creates link:  ~/.config/nvim/init.lua  →  ~/.cache/dotter/dots/9e1bd4...
+```
 
-#### Traversing Directories
+The file now lives in one place and is tracked in `files.json`.
 
-Press `l` to enter the currently highlighted directory, or press `h` at any time to move up to the parent directory. If the current selection is a file, these commands will have no effect.
+### 2. Put the database directory under version control
 
-#### List Registered Files
+```sh
+cd ~/.cache/dotter
+git init
+git add dots/ files.json
+git commit -m "add dotfiles"
+```
 
-Press `t` to open List Mode, which displays all registered files. From this view, you can edit, remove, restore, or deploy your dotfiles. See the [Dotter View](#dotter-view-%EF%B8%8F) section below for the complete command mapping.
+### 3. Deploy to a new machine
 
-### Dotter View 🗒️
+Clone your repo, open Dotter with `-d` pointing at the database, switch to the Registered Files view (`t`), select all entries, and press `s`:
 
-The Dotter View lists every registered file currently tracked in your database. From here, you can modify target paths, restore or remove files, and clean up your database. It is also the starting point for deploying your dotfiles onto a newly formatted system.
+```sh
+# On the new machine
+git clone git@github.com:you/dotfiles.git ~/dotfiles
+python main.py -d ~/dotfiles/files.json
+# → press t → select all → press s
+```
 
-| Key        | Description                       |
-| ---------- | --------------------------------- |
-| `cl`, `cc` | [Clean Database](#clean-database) |
-| `r`        | [Restore files](#restore-files)   |
-| `d`        | [Delete files](#delete-files)     |
-| `eh`       | [Edit Home Path](#edit-home-path) |
-| `s`        | [Setup Files](#setup-files)       |
-| `t`        | Go back to File Browser           |
+Dotter creates symlinks at the exact paths stored in the database.
 
-#### Clean Database
+---
 
-Pressing `cl` or `cc` syncs your database with your physical storage. Any database entry lacking a corresponding physical file in `~/.cache/dotter/dots` will be purged. Conversely, any untracked files found within the `dots` directory will be moved to `~/.cache/dotter/dots/remove/`.
+## Key bindings
 
-#### Restore Files
+### Global (all modes)
 
-Pressing `r` restores all selected entries. This removes them from the Dotter database and returns the physical files from `~/.cache/dotter/dots/` back to their original system locations.
+| Key | Action |
+|---|---|
+| `j` / `k` | Move cursor down / up |
+| `gg`, `g0` | Jump to top |
+| `G` | Jump to bottom |
+| `v` | Toggle Select Mode |
+| `/` or `f` | Enter Filter Mode |
+| `x` | Clear filter |
+| `q` | Quit |
 
-#### Delete Files
+### File Browser
 
-Pressing `d` removes the selected entries from the database. True to Dotter's non-destructive design, no data is erased: the corresponding files are safely relocated to `~/.cache/dotter/dots/remove/`, and their active system symlinks are severed.
+Navigate the filesystem and add files to the database.
 
-#### Edit Home Path
+| Key | Action |
+|---|---|
+| `l` | Enter highlighted directory |
+| `h` | Go to parent directory |
+| `Space` / `Enter` | Toggle selection on current entry |
+| `a` | Add selected files to database |
+| `t` | Open Registered Files view |
 
-Pressing `eh` updates the target home directory path for all selected entries. You will be prompted to enter a new username; leaving the prompt empty aborts the operation. Otherwise, the username context within the file paths is updated, and the corresponding files in the `dots` directory are duplicated to reflect the new user profile.
+Files already tracked in the database are marked with a `󰃁` icon (requires Nerd Fonts).
 
-This process is entirely non-destructive—your original files and entries remain untouched.
+> Dotter only accepts individual files — directories cannot be added directly.
 
-#### Setup Files
+### Registered Files view
 
-Pressing `s` deploys the selected dotfiles onto your current system.
+Manage your tracked dotfiles.
 
-> [!WARNING]
-> Symlinks will be created **exactly** at the literal paths stored in the database.
+| Key | Action |
+|---|---|
+| `Space` / `Enter` | Toggle selection on current entry |
+| `r` | Restore selected files to their original paths |
+| `d` | Delete selected files (moves to `remove/`, non-destructive) |
+| `eh` | Edit home username for selected entries |
+| `s` | Deploy (setup) selected files on the current system |
+| `cl` / `cc` | Clean database — sync entries with physical files |
+| `t` | Return to File Browser |
 
-The operation will fail if you lack the necessary write permissions or if the paths reference a non-existent home directory.
+---
 
-Dotter **will not** overwrite existing files. If a file already occupies a path where Dotter attempts to drop a symlink, that file is skipped. Please back up and clear conflicting files before running this command.
+## Modes
+
+### Normal Mode
+
+The default mode. Navigate, toggle selections, and run commands.
+
+### Select Mode (`v`)
+
+Activates a visual range selector. Moving the cursor while in Select Mode highlights a range of files. Pressing `v` or `ESC` to exit commits the highlighted range as the current selection.
+
+### Filter Mode (`/`)
+
+A live regex filter overlaid at the bottom of the screen. Type a Python regular expression; the list updates in real time. Press `ESC`, `Enter`, or `Space` to return to Normal Mode. The filter clears automatically when you change directories, or manually with `x`.
+
+---
+
+## Operations reference
+
+### Add files (`a`)
+
+Moves the selected file from its current location into `dots/` and places a symlink back at the original path. If the file was already registered but has drifted (e.g. the symlink was removed), the existing database copy is moved to `remove/` before the new file takes its place.
+
+### Restore (`r`)
+
+Removes entries from the database and moves the physical files back to their original system paths. The symlink is replaced by the real file.
+
+### Delete (`d`)
+
+Removes entries from the database and moves the corresponding files to `remove/`. The symlink at the original path is severed. No data is lost.
+
+### Edit home path (`eh`)
+
+Prompts for a new username and duplicates the selected entries under the new home path. Useful for deploying the same configs for a different user. The original entries are left untouched.
+
+### Setup (`s`)
+
+Creates symlinks on the system at the exact paths stored in the database. Skips any path where a file already exists — clear conflicts manually before running. Paths must point to a home directory that exists on the current machine.
+
+### Clean database (`cl` / `cc`)
+
+Reconciles the database with physical storage:
+- Entries with no matching file in `dots/` are purged from the database.
+- Files in `dots/` not tracked in the database are moved to `remove/`.
+
+---
+
+## Theming
+
+Pass a TOML file with `-t` to customize colors. Each key maps to `[foreground, background]` using [ANSI 256 color codes](https://gist.github.com/fnky/458719343aabd01cfb17a3a4f7296797). Use `-1` to inherit the terminal default.
+
+```toml
+# theme.toml — all values are optional, unset keys fall back to defaults
+
+Directory = [105,  -1]   # color of directory entries
+Selected  = [ -1,  34]   # selected file highlight
+Warning   = [124,  -1]   # warning messages
+Note      = [220,  -1]   # informational messages
+Help      = [ -1, 240]   # help bar background
+Accent    = [105, 240]   # accented text in help bar
+PreSelect = [ -1,  34]   # visual range highlight (before committing selection)
+NormalMod = [ -1, 240]   # mode indicator: Normal
+VisualMod = [ -1, 124]   # mode indicator: Select
+FilterMod = [ -1,  34]   # mode indicator: Filter
+```
+
+Any key you omit stays at the default value. A malformed TOML file causes Dotter to silently fall back to all defaults.
